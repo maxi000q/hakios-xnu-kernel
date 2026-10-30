@@ -1,0 +1,68 @@
+name: check
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python compiles
+        run: |
+          git ls-files '*.py' | xargs -r python3 -m py_compile
+      - name: Shell scripts parse
+        run: |
+          git ls-files '*.sh' xl | xargs -r -n1 bash -n
+      - name: Makefile help
+        run: make help
+      - name: No Apple files, no screenshots
+        run: |
+          # the rule of the repository: nothing of iOS, no pictures of it
+          ! git ls-files | grep -E -i '\.(png|jpe?g|gif|dylib|dmg|ipsw|car|nib|strings)$' | grep -v '^prebuilt/userland/' 
+          ! git ls-files | grep -E -i 'cryptex|dyld_shared_cache|SpringBoard\.app|/System/Library/'
+      - name: The kernel patch applies to Apple's tree
+        run: |
+          git clone -q --depth 1 --branch xnu-8796.121.2 https://github.com/apple-oss-distributions/xnu.git /tmp/xnu
+          git -C /tmp/xnu apply --check "$PWD/xnu/hakios.patch"
+      - name: APFS tools self-test
+        run: |
+          [ -x tools/apfs/run-tests.sh ] && tools/apfs/run-tests.sh || echo "no self-test on this runner"
+      - name: SoC args generator reproduces the POCO X5 Pro values
+        run: sh tools/soc-args-test.sh
+
+  # the app edition's desktop rig: the same C++ the phone runs, compiled by
+  # the host g++, executed on the runner -- memory, interpreter, image
+  # pipeline, renderer policy, engine, and the whole-machine demo-kernel test
+  desktop-rig:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The rig (stages 2-8)
+        run: tests/run_desktop_tests.sh
+      - name: The generator round-trips its fixtures
+        run: |
+          pip install --quiet keystone-engine
+          python3 scripts/gen_demo_kernel.py && \
+            git diff --exit-code -- app/src/main/assets/demo-kernel.img3 \
+            || { echo 'demo-kernel.img3 is stale: regenerate it'; exit 1; }
+
+  # the APK: the native core built by the NDK for the three ABIs of the
+  # universal build, the Java of the install and emulator screens, one
+  # artifact per push
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: SDK pieces the build needs
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" "cmake;3.22.1" > /dev/null
+      - name: Build the universal APK
+        run: ./gradlew --no-daemon assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hakios-universal-apk
+          path: app/build/outputs/apk/release/app-release-unsigned.apk

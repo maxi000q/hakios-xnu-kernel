@@ -28,14 +28,25 @@ do so is your responsibility. If in doubt, consult a lawyer.
 
 ## What this repository does NOT contain and never distributes
 
-- **No part of iOS**: no iOS binary, image, cache, font, picture or screenshot. The user-space
-  half of the system image is built on your machine from the iOS 16.5 IPSW, which
-  `sysimage/fetch.sh` downloads from Apple's public servers under Apple's license, to your
-  machine only. Nothing of it is committed here.
+- **No part of iOS**: no iOS binary, image, cache, font, picture or screenshot. The
+  two paths each build their system material on your machine:
+  - the native path's user-space image is built from the iOS 16.5 IPSW, which
+    `sysimage/fetch.sh` downloads from Apple's public servers under Apple's
+    license, to your machine only;
+  - the app edition's install fetches the kernel cache (7.4 MB) out of the
+    iOS 6.1.3 IPSW from Apple's servers the same way (`sysimage/ios6/`), and
+    stores the encrypted root filesystem DMG as the guest's system volume
+    without decrypting it -- this release's emulator has no HFSX consumer,
+    and the fetch tool reports what the volume is instead of pretending.
+  Nothing of any of it is committed here.
 - **No device firmware**: the GPU, Wi-Fi, audio DSP, modem, haptics and camera firmware is the
   vendor's (Qualcomm/Xiaomi). It is pulled from your own phone (`make firmware`) and is git-ignored.
 - **No keys, certificates, activation data, or anything to impersonate a genuine Apple device to
-  Apple's services.** Signing in to an Apple account is not possible here and is not a goal.
+  Apple's services.** Signing in to an Apple account is not possible here and is not a goal. The
+  iOS 6 kernel cache is AES-256 encrypted as Apple ships it; the app edition's loader decrypts
+  it only with a key and IV the user supplies from their own research, and the repository ships
+  none, derives none, and circumvents nothing. The bundled self-test kernel needs no key because
+  it is this project's own code, not Apple's.
 
 ## The Apple-free configuration
 

@@ -2,7 +2,10 @@
 # below it; run the script itself for its options.
 #
 #   make                 help
-#   make fetch           the OS files from the iOS 16.5 IPSW into sysimage/ (sysimage/fetch.sh)
+#   make fetch           the OS files from the iOS 16.5 IPSW into sysimage/ (sysimage/fetch.sh) -- the native path
+#   make fetch-ios6      the app edition's files from the iOS 6.1.3 IPSW (sysimage/ios6/fetch.sh)
+#   make tests           the desktop rig: stages 2-8 of the app edition, host g++, -Werror
+#   make apk             the app: universal APK (arm64-v8a, armeabi-v7a, x86_64)
 #   make images          userland/root.apfs and userland/system.apfs (userland/build.sh)
 #   make kernel          the kernel from source (xnu/apply.sh, xnu-deps/setup.sh, xnu-build.sh)
 #   make loader          the boot loader, with identity.h made from your IPSW (xnuloader/build.sh)
@@ -26,7 +29,7 @@ ARGS_OPEN ?= cpus=1
 ARGS ?= touchscreen=1 gpu=1 adsp=1 sound=4 wifi=1 haptic=5 modem=1 modem_again=1 modem_buffer=0xa8000000
 IMAGE_OPTS ?= REST=1
 
-.PHONY: help fetch images kernel loader loader-open hello qemu qemu-open phone prebuilt clean all
+.PHONY: help fetch fetch-ios6 tests apk images kernel loader loader-open hello qemu qemu-open phone prebuilt clean all
 
 help:
 	@sed -n '2,23p' Makefile | sed 's/^# \{0,1\}//'
@@ -35,6 +38,15 @@ all: kernel loader images
 
 fetch:
 	sysimage/fetch.sh
+
+fetch-ios6:
+	KERNEL_ONLY=1 sysimage/ios6/fetch.sh
+
+tests:
+	tests/run_desktop_tests.sh
+
+apk:
+	./gradlew assembleRelease
 
 images:
 	$(IMAGE_OPTS) userland/build.sh
@@ -64,14 +76,14 @@ loader-open:
 # `hello` on its own: a static, raw-syscall program (no iOS SDK, no Apple libraries).
 hello:
 	. ./xnu-env.sh && xnu-clang -arch arm64 -Os -static -nostdlib -ffreestanding \
-		-fno-stack-protector -fno-builtin -Wl,-e,_start -Wl,-pagezero_size,0x100000000 \
-		-o userland/hello userland/src/hello.c
+                -fno-stack-protector -fno-builtin -Wl,-e,_start -Wl,-pagezero_size,0x100000000 \
+                -o userland/hello userland/src/hello.c
 
 qemu-open: kernel loader-open hello
 	mkdir -p logs
 	xnuloader/mkpayload.py -o qemu/payload.bin \
-		kernel=xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837 \
-		ramdisk=userland/hello --cmdline "$(ARGS_OPEN)"
+                kernel=xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837 \
+                ramdisk=userland/hello --cmdline "$(ARGS_OPEN)"
 	qemu/run.sh $(SECS) | tee logs/qemu-open.log
 
 phone:

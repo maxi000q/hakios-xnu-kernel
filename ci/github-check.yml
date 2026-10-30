@@ -1,31 +1,13 @@
-name: check
-on:
-  push:
-  pull_request:
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Python compiles
-        run: |
-          git ls-files '*.py' | xargs -r python3 -m py_compile
-      - name: Shell scripts parse
-        run: |
-          git ls-files '*.sh' xl | xargs -r -n1 bash -n
-      - name: Makefile help
-        run: make help
-      - name: No Apple files, no screenshots
-        run: |
-          # the rule of the repository: nothing of iOS, no pictures of it
-          ! git ls-files | grep -E -i '\.(png|jpe?g|gif|dylib|dmg|ipsw|car|nib|strings)$' | grep -v '^prebuilt/userland/' 
-          ! git ls-files | grep -E -i 'cryptex|dyld_shared_cache|SpringBoard\.app|/System/Library/'
-      - name: The kernel patch applies to Apple's tree
-        run: |
-          git clone -q --depth 1 --branch xnu-8796.121.2 https://github.com/apple-oss-distributions/xnu.git /tmp/xnu
-          git -C /tmp/xnu apply --check "$PWD/xnu/hakios.patch"
-      - name: APFS tools self-test
-        run: |
-          [ -x tools/apfs/run-tests.sh ] && tools/apfs/run-tests.sh || echo "no self-test on this runner"
-      - name: SoC args generator reproduces the POCO X5 Pro values
-        run: sh tools/soc-args-test.sh
+# The CI workflow lives where GitHub Actions actually runs it:
+# .github/workflows/check.yml (it was here since the beginning, but a
+# workflow outside .github/workflows/ never runs -- stage 9 moved it and
+# wired the desktop rig and the APK build into it).
+#
+# What it checks, in short:
+#   check        python compiles, shell parses, no Apple files in the tree,
+#                the kernel patch applies to Apple's xnu-8796 tag, the APFS
+#                tools, the POCO X5 Pro SoC-args regression
+#   desktop-rig  the app edition's stages 2-8 on the host g++ (including the
+#                whole-machine demo-kernel test) and the fixture round-trip
+#   apk          the universal APK (arm64-v8a, armeabi-v7a, x86_64) built by
+#                the NDK, uploaded as an artifact of every push

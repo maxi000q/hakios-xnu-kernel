@@ -2,6 +2,10 @@
 
 [English](README.md) · 中文 · [Українська](README.uk.md)
 
+> **本翻译描述的是原生（native）16.5 路径。** 这个仓库的 iOS 6 应用版（在应用内模拟一台
+> iPhone 4、安装 iOS 6.1.3 的模拟器）是最新的主线，完整说明见
+> [English README](README.md)；本文件的其余部分仍准确描述原生路径。
+
 HakiOS 在搭载高通 SoC 的 Android 手机上运行开源的 XNU 内核（xnu-8796.121.2），配上我自己写的引导
 程序和驱动，并在其上启动原版 iOS 16.5 用户空间：launchd、backboardd、SpringBoard 和各个应用。同样
 的东西也能在 Linux 电脑上的 QEMU（`virt`，aarch64）里运行。
