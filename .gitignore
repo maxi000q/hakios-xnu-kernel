@@ -30,6 +30,24 @@
 !/xnu-deps/
 !/prebuilt/
 !/wifi/
+# the iOS 6 app edition (stages 1-10, see ROADMAP.md)
+!/ROADMAP.md
+!/docs/
+!/native/
+!/app/
+!/.github/
+!/tests/
+!/scripts/
+
+# Android build output never belongs in the tree
+/app/build/
+/app/.cxx/
+/app/.externalNativeBuild/
+/.gradle/
+/local.properties
+*.apk
+*.aab
+.cxx/
 
 __pycache__/
 *~
