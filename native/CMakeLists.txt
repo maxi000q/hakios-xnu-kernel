@@ -17,7 +17,21 @@ add_library(hakios_core STATIC
     image/kernel_lzss.cpp
     image/macho_arm.cpp
     image/kernel_loader.cpp
-    image/dyld_cache.cpp)
+    image/dyld_cache.cpp
+    gpu/frame_renderer.cpp
+    gpu/egl_backend.cpp    # compiles to nothing off Android
+    core/emulator.cpp)
 
 target_include_directories(hakios_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(hakios_core PRIVATE -Wall -Wextra)
+
+if(ANDROID)
+    # the stage-5 display path: EGL + GLESv2, the floor on every Adreno 619 phone
+    target_link_libraries(hakios_core PUBLIC EGL GLESv2 android)
+endif()
+
+# the JNI bridge is the app-facing surface of the core (stage 6)
+if(ANDROID)
+    add_library(hakios_jni STATIC jni/hakios_jni.cpp)
+    target_link_libraries(hakios_jni PUBLIC hakios_core)
+endif()

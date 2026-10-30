@@ -42,7 +42,7 @@ void FrameRenderer::quad_rect(float* x0, float* y0, float* x1, float* y1) const 
 }
 
 bool FrameRenderer::render(int64_t now_ms) {
-    if (surface_w_ <= 0) return false;             // not initialized
+    if (surface_w_ <= 0 || backend_ == nullptr) return false;  // not initialized
     if (last_present_ms_ >= 0 && now_ms - last_present_ms_ < kFrameIntervalMs)
         return false;                              // the 30 fps cap holds
 

@@ -53,6 +53,17 @@ public:
 
     FrameRenderer(StorageMemory& guest, Backend* backend) : guest_(guest), backend_(backend) {}
 
+    // The backend may be attached or swapped at any time (the JNI bridge
+    // hands over the EGL one when the app's surface exists). A swap resets
+    // the surface state: the new backend needs its own init() before any
+    // frame goes out, and a null backend silences the renderer.
+    void set_backend(Backend* backend) {
+        backend_ = backend;
+        surface_w_ = surface_h_ = 0;
+        last_present_ms_ = -1;
+    }
+    bool has_backend() const { return backend_ != nullptr; }
+
     // Acquire the surface. Safe to re-run (surface recreated).
     bool init(std::string* err);
 
