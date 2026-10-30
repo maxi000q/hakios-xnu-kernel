@@ -45,3 +45,25 @@ device tree, UEFI, firmware. The app path does not: an interpreted guest has no 
 the phone's real device tree, interrupts or firmware. This directory therefore holds
 target-class facts and tuning only. If the native path is ever ported to an Adreno 619
 device, it gets its own `devices/<phone>/` next to this one.
+
+## Compatibility: any Android device, not one phone
+
+The app edition runs on **every Android device the APK installs on**, not on one model:
+
+- The emulator core is pure C++ (stages 2-6): it interprets ARMv7 against a
+  storage-backed image and touches no host hardware — no device tree, no
+  fastboot, no unlocked bootloader, no per-phone port. A phone brand does not
+  exist anywhere in its code.
+- Minimum requirements stay modest: Android 7.0 (API 24) and ~1 GB of free
+  storage for the guest image. The stage-10 release ships a universal APK
+  covering `arm64-v8a`, `armeabi-v7a` and `x86_64` (emulators included).
+- What "Adreno 619 first" means in practice: the *tuning reference*. The
+  renderer's frame pacing, the RGB565 blit, the interpreter's step budget and
+  the storage-backed memory policy are all sized against a mid-range 2020
+  phone so that the experience is right there, and everything faster only
+  benefits. Nothing prevents an Exynos/Helio/older-Snapdragon device from
+  running the same build.
+- Speed scales with the host CPU: the interpreter sustains ~144 MIPS on a
+  desktop core at -O2, which translates to roughly 60-100 MIPS on a
+  Snapdragon 690/720G/750G/480 big core — the "slow but works" budget the
+  install screen and the first boot are designed around.

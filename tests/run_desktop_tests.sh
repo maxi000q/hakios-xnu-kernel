@@ -18,7 +18,12 @@ CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -Werror -I$ROOT/native/include"
 mkdir -p "$OUT"
 
 # every source of the core links into every test
-sources=$(ls native/memory/*.cpp 2>/dev/null)
+sources=""
+for d in native/memory native/cpu; do
+    for f in "$d"/*.cpp; do
+        [ -e "$f" ] && sources="$sources $f"
+    done
+done
 rc=0
 
 for t in tests/test_*.cpp; do
