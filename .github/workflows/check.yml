@@ -48,7 +48,7 @@ jobs:
 
   # the APK: the native core built by the NDK for the three ABIs of the
   # universal build, the Java of the install and emulator screens, one
-  # artifact per push
+  # artifact per push (the ubuntu runner carries the SDK itself)
   apk:
     runs-on: ubuntu-latest
     steps:
@@ -57,9 +57,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - name: SDK pieces the build needs
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" "cmake;3.22.1" > /dev/null
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" "cmake;3.22.1" > /dev/null
       - name: Build the universal APK
         run: ./gradlew --no-daemon assembleRelease
       - uses: actions/upload-artifact@v4
