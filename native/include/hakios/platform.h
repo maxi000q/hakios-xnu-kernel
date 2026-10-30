@@ -55,4 +55,13 @@ inline uint32_t load_u32(const uint8_t* p) {
 inline void store_u16(uint8_t* p, uint16_t v) { std::memcpy(p, &v, sizeof v); }
 inline void store_u32(uint8_t* p, uint32_t v) { std::memcpy(p, &v, sizeof v); }
 
+// A four-character constant in the convention Apple's container formats use:
+// the constant equals a little-endian u32 read of the raw bytes, so the bytes
+// of 'TYPE' appear as "EPYT" in a hex editor and load_u32() of them compares
+// equal to fourcc("TYPE").
+constexpr uint32_t fourcc(const char* s) {
+    return uint32_t(uint8_t(s[0])) << 24 | uint32_t(uint8_t(s[1])) << 16 |
+           uint32_t(uint8_t(s[2])) << 8 | uint32_t(uint8_t(s[3]));
+}
+
 }  // namespace hakios

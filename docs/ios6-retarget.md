@@ -8,12 +8,19 @@ Every difference between the two follows from that one decision.
 
 | | Upstream (16.5) | This fork (6.x) |
 |---|---|---|
-| XNU | xnu-8796.121.2 | xnu-2107 series (the 6.1.x line; exact tag pinned in stage 4) |
+| XNU | xnu-8796.121.2 | xnu-2107 series (the iOS 6 line) |
+| Verified build | 20F66, iPhone X | **6.1.3 (10B329), iPhone3,1** — pinned in stage 4 |
 | ISA | ARM64, ARM64e kernel | ARMv7-A, 32-bit |
 | Pointer auth | PAC | none |
 | Page tables | ARM64 long descriptors | ARMv7 short descriptors |
 | Sealed volume / cryptex | yes | no such thing in 2012 |
-| Kernelcache wrapper | IMG4 / IM4P | IMG3 / 8900 |
+| Kernelcache wrapper | IMG4 / IM4P | IMG3 (`3gmI` at offset 0, ident `krnl`) |
+
+The stage-4 verification, done against Apple's own archive: **iOS 6.1.6 was
+never shipped for the iPhone 4** — it exists for the iPhone 3GS and the iPod
+touch 4G only. The last iOS 6 of the emulated machine (iPhone3,1, the A4,
+512 MiB) is **6.1.3, build 10B329**, and that is what the app installs
+(`sysimage/ios6/README.md` has the member-by-member record).
 
 The reason to go back: an in-app interpreter can afford to implement ARMv7. It is a fixed,
 small, well-documented 32-bit instruction set; there is no PAC, no PPL, no TZ `trampoline`,
@@ -22,19 +29,33 @@ multi-level walk with permission indirections. Emulating 2012 hardware is a week
 compared to emulating 2023 hardware, and iOS 6 is the era the target phones' GPUs feel at
 home with anyway.
 
+One consequence stage 4 made physical: the kernel cache is **linked at
+0x80001000**, and XNU 2107 maps RAM 1:1 at boot, because every Apple ARM
+SoC of the era places SDRAM at 0x80000000. The emulated iPhone's RAM moved
+there (`native/include/hakios/guest_map.h`) — stage 2 had drawn it at
+physical 0, which no unmodified iOS 6 kernel could run from. The storage
+image now covers 2.5 GiB of address space; it stays sparse, so the cost on
+flash is the pages actually written.
+
 ## System image
 
 - Upstream `sysimage/fetch.sh` pulls, from Apple's public CDN, the 16.5 iPhone X IPSW
   members: an APFS root filesystem (4.7 GB), an OS cryptex with the arm64 dyld shared
   cache, an App cryptex.
-- iOS 6.1.6 for an armv7 device (iPhone 4, `iPhone3,1`; exact build verified in stage 4)
-  has: one HFSX root filesystem (a few hundred MB), an armv7/armv7s dyld shared cache on
-  the system volume, and nothing else. No cryptexes, no sealed root, no update volumes.
+- iOS 6.1.3 for the iPhone 4 (`iPhone3,1`; the build stage 4 verified, see
+  above) has: one root filesystem DMG (~860 MB, `encrcdsa`-encrypted), the
+  kernel cache inside the IPSW, an armv7 dyld shared cache on the system
+  volume, and nothing else. No cryptexes, no sealed root, no update volumes.
 
 The stage 4 pipeline keeps upstream's contract — "nothing of iOS is in the repository; the
 user's own machine downloads it from Apple's servers" — with a smaller, simpler payload.
-What it unpacks with changes accordingly: HFSX instead of APFS, `8900`/IMG3 instead of
-IMG4, armv7 cache headers instead of arm64.
+What it works with changes accordingly: IMG3 instead of IMG4, an encrypted rootfs
+volume stored as the guest's system disk instead of an APFS image unpacked on the
+desktop, armv7 cache headers instead of arm64. The kernel side is real end to end
+(parse, optional decrypt with a user-supplied key, LZSS inflate, segments into guest
+RAM); the filesystem side is honest about its boundary — the 6.x DMG is encrypted
+whole, and this release's emulator has no HFSX consumer yet, so the volume is
+installed and reported, not unpacked (`sysimage/ios6/README.md`).
 
 ## Memory: storage, not RAM
 

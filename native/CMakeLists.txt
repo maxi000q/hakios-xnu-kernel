@@ -11,7 +11,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Warnings that matter: this core runs a kernel, not a webpage.
 add_library(hakios_core STATIC
     memory/storage_memory.cpp
-    cpu/arm7_cpu.cpp)
+    cpu/arm7_cpu.cpp
+    image/aes256.cpp
+    image/img3.cpp
+    image/kernel_lzss.cpp
+    image/macho_arm.cpp
+    image/kernel_loader.cpp
+    image/dyld_cache.cpp)
 
 target_include_directories(hakios_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(hakios_core PRIVATE -Wall -Wextra)

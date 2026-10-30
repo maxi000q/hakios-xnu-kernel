@@ -77,6 +77,12 @@ __pycache__/
 /sysimage/*
 !/sysimage/fetch.sh
 !/sysimage/*.py
+!/sysimage/ios6/
+# of the iOS 6 fetcher only its own files, never what it downloads
+/sysimage/ios6/*
+!/sysimage/ios6/fetch.sh
+!/sysimage/ios6/encrcdsa.py
+!/sysimage/ios6/README.md
 
 # of xnu-deps only what is ours; setup.sh fetches and builds the rest
 /xnu-deps/*

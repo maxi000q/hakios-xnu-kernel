@@ -19,7 +19,7 @@ mkdir -p "$OUT"
 
 # every source of the core links into every test
 sources=""
-for d in native/memory native/cpu; do
+for d in native/memory native/cpu native/image native/gpu native/core; do
     for f in "$d"/*.cpp; do
         [ -e "$f" ] && sources="$sources $f"
     done
