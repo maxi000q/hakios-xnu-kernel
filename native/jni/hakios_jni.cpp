@@ -125,6 +125,14 @@ Java_com_hakios_ios6_Emulator_nativeStatus(JNIEnv* env, jobject) {
 
 JNIEXPORT jboolean JNICALL
 Java_com_hakios_ios6_Emulator_nativeSetSurface(JNIEnv* env, jobject, jobject surface) {
+    // Swapping the display under a live run thread is a use-after-free: the
+    // thread would render through a backend the UI thread is deleting. So the
+    // machine is parked first (the join also lets the run thread give up its
+    // EGL context on its own thread), and a machine that was running is
+    // started again on the new surface -- a new thread with its own context.
+    const bool was_running = engine().running() &&
+                             engine().status().state == hakios::Emulator::State::kRunning;
+    engine().pause();
     delete display;
     display = nullptr;
     if (!surface) {                       // the view went away: stop drawing
@@ -138,7 +146,8 @@ Java_com_hakios_ios6_Emulator_nativeSetSurface(JNIEnv* env, jobject, jobject sur
         ANativeWindow_release(window);
         return JNI_FALSE;
     }
-    engine().set_display(display);
+    engine().set_display(display);        // owns the window reference from here
+    if (was_running) engine().start(nullptr);
     return JNI_TRUE;
 }
 

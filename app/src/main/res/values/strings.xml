@@ -29,5 +29,7 @@ same loader, CPU and display without any Apple code.</string>
     <string name="emulator_status">state %1$s · %2$,d instructions · %3$.1f MIPS · %4$s resident</string>
     <string name="emulator_pause">Pause</string>
     <string name="emulator_resume">Resume</string>
+    <string name="emulator_run_again">Run again</string>
     <string name="emulator_halted">The guest halted: %1$s at pc 0x%2$08x</string>
+    <string name="emulator_selftest_done">Self-test kernel finished cleanly: %1$,d instructions, memory verified, boot show painted. Run again boots it once more.</string>
 </resources>

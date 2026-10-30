@@ -10,8 +10,8 @@ android {
         applicationId 'com.hakios.ios6'
         minSdk 24          // Android 7.0: the floor the target doc set
         targetSdk 34
-        versionCode 1
-        versionName '1.0-ios6'
+        versionCode 2
+        versionName '1.1-ios6'
         // The universal APK of stage 10: every ABI the target class runs on.
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'

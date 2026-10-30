@@ -36,16 +36,23 @@ public class EmulatorScreen extends Activity implements SurfaceHolder.Callback {
         @Override
         public void run() {
             Emulator.Status s = Emulator.status();
-            statusBar.setText(String.format(Locale.US,
-                    getString(R.string.emulator_status),
-                    s.state, s.executed, s.mips, humanBytes(s.residentBytes)));
-            if (s.halted()) {
+            if (s.halted() && s.cleanPoweroff && s.executed > 0) {
+                // the self-test kernel's own words for its own finish
+                statusBar.setText(String.format(Locale.US,
+                        getString(R.string.emulator_selftest_done), s.executed));
+            } else if (s.halted()) {
                 statusBar.setText(String.format(Locale.US,
                         getString(R.string.emulator_halted),
                         Emulator.describeHalt(s), s.haltPc));
+            } else {
+                statusBar.setText(String.format(Locale.US,
+                        getString(R.string.emulator_status),
+                        s.state, s.executed, s.mips, humanBytes(s.residentBytes)));
             }
             pauseButton.setText(s.running()
-                    ? R.string.emulator_pause : R.string.emulator_resume);
+                    ? R.string.emulator_pause
+                    : (s.halted() ? R.string.emulator_run_again
+                                  : R.string.emulator_resume));
             ui.postDelayed(this, 500);
         }
     };

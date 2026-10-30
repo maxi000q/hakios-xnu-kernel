@@ -13,7 +13,10 @@
 //                     image is a file, a process kill loses nothing
 //   load_kernel()     stage-4 chain into guest RAM, entry PC set
 //   start()           the run thread: slices of instructions, a frame out
-//                     every 33 ms through the stage-5 renderer, until halt
+//                     every 33 ms through the stage-5 renderer, until halt.
+//                     Starting a halted guest resets the CPU and boots again
+//                     ("run again"), so the thread's death after a halt is
+//                     never mistaken for a machine that is still running
 //   pause()           the thread joins, the guest freezes mid-instruction,
 //                     start() continues it
 //   run_sync()        the same slices on the caller's thread -- the desktop
@@ -99,7 +102,11 @@ public:
     // -- the run thread --------------------------------------------------------
     bool start(std::string* err);      // fails without a kernel
     void pause() noexcept;             // join the thread, keep everything
-    bool running() const { return run_thread_.joinable(); }
+    // True while a run thread is actually alive. A thread that already
+    // finished (the guest halted) is still joinable, so joinable() alone
+    // must never be read as "running" -- that mistake is why "run again"
+    // used to do nothing after the first halt.
+    bool running() const { return thread_alive_.load(); }
 
     // Synchronous slices for the desktop rig: up to max_steps instructions,
     // rendering through the display if one is attached. Returns steps run.
@@ -133,8 +140,15 @@ private:
     FrameRenderer renderer_{mem_, nullptr};
     std::thread run_thread_;
     std::atomic<bool> stop_requested_{false};
+    // Set while a run thread is executing; cleared as its last act. start()
+    // reads it to tell "genuinely running" from "finished but not joined",
+    // and joins the corpse before launching the next thread.
+    std::atomic<bool> thread_alive_{false};
     mutable double mips_cache_ = 0.0;
-    bool display_ready_ = false;       // backend initialized on this thread
+    // The backend's GL state was initialized on the thread that runs slices
+    // (an EGL context belongs to its thread). Atomic: set_display() clears
+    // it from the app thread, ensure_display() raises it on the run thread.
+    std::atomic<bool> display_ready_{false};
 
     State state_ = State::kEmpty;
     uint32_t entry_pc_ = 0;

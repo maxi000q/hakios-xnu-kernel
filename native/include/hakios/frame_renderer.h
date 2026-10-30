@@ -47,6 +47,11 @@ public:
         virtual void draw_quad(float x0, float y0, float x1, float y1) = 0;
         // Present (eglSwapBuffers on Android).
         virtual void swap() = 0;
+        // Give up the context and every thread-affine resource. Called on
+        // the thread that called init() -- EGL contexts must die where they
+        // were made current. The default is nothing: a backend with no
+        // thread-affine state (the desktop rig's recorder) needs none of it.
+        virtual void release() {}
     };
 
     static constexpr int64_t kFrameIntervalMs = 33;  // the 30 fps cap
@@ -66,6 +71,17 @@ public:
 
     // Acquire the surface. Safe to re-run (surface recreated).
     bool init(std::string* err);
+
+    // Give up the backend's GL on the thread that owns the context -- the
+    // run thread calls this before it exits, so the next run thread (a
+    // restart after a halt) builds its own context instead of touching an
+    // EGL context that belonged to a dead thread. After this, init() must
+    // run again before any frame goes out.
+    void release_on_thread() {
+        if (backend_) backend_->release();
+        surface_w_ = surface_h_ = 0;
+        last_present_ms_ = -1;
+    }
 
     // Present a frame if one is due at now_ms (a monotonic clock the caller
     // owns, so the tests own time too). Returns true when a frame went out;

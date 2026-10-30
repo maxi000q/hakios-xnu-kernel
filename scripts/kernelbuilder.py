@@ -45,6 +45,16 @@ class Lzss:
         return bytes(out)
 
     def compress(self, data):
+        # The match search is the classic LZ77 one, on the output stream: a
+        # match at distance d says data[i+j] == data[i-d+j], and when it is
+        # longer than d the source range runs into the match's own output --
+        # which is exactly what the decoder's byte-by-byte ring copy
+        # reproduces. Searching the ring contents directly instead (as an
+        # earlier version did) compares STALE bytes for those overlapping
+        # matches, and the decoder then produces different bytes than the
+        # search validated: the adler32 of the round trip no longer matches.
+        # Distances never exceed the output so far, so the ring's
+        # never-written spaces cannot be matched either.
         self.ring = bytearray(b' ' * RING)
         self.pos = RING - MAXMATCH
         out = bytearray()
@@ -61,23 +71,27 @@ class Lzss:
             bits[0] -= 1
 
         i = 0
-        while i < len(data):
-            best_len, best_pos = 0, 0
-            for pos in range(RING):
+        n = len(data)
+        while i < n:
+            best_len, best_d = 0, 0
+            for d in range(1, min(RING, i) + 1):
+                if data[i - d] != data[i]:
+                    continue
                 l = 0
-                p = pos
-                while l < MAXMATCH and i + l < len(data) and self.ring[p] == data[i + l]:
+                while (l < MAXMATCH and i + l < n
+                       and data[i - d + l] == data[i + l]):
                     l += 1
-                    p = (p + 1) % RING
                 if l > best_len:
-                    best_len, best_pos = l, pos
+                    best_len, best_d = l, d
                     if l == MAXMATCH:
                         break
             if best_len >= 3:
+                pos = (self.pos - best_d) % RING
                 emit(0)
-                out.append(best_pos & 0xFF)
-                out.append(((best_pos >> 4) & 0xF0) | (best_len - 3))
-                self.copy_match(best_pos, best_len)
+                out.append(pos & 0xFF)
+                out.append(((pos >> 4) & 0xF0) | (best_len - 3))
+                for k in range(best_len):
+                    self.put(data[i + k])
                 i += best_len
             else:
                 emit(1)

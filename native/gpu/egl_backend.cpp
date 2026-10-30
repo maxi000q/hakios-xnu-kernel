@@ -56,8 +56,17 @@ unsigned compile(unsigned kind, const char* src, std::string* err) {
 
 }  // namespace
 
-EglBackend::~EglBackend() { release(); }
+EglBackend::~EglBackend() {
+    release();
+    if (window_) {                    // our reference from ANativeWindow_fromSurface
+        ANativeWindow_release(static_cast<ANativeWindow*>(window_));
+        window_ = nullptr;
+    }
+}
 
+// EGL state only: the window reference lives as long as the object, so a
+// release()/init() pair on the same backend (the run thread giving up its
+// context, the next one building its own) keeps the surface to re-acquire.
 void EglBackend::release() noexcept {
     if (display_) {
         eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);

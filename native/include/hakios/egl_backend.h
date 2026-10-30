@@ -15,8 +15,10 @@ namespace hakios {
 
 class EglBackend : public FrameRenderer::Backend {
 public:
-    // window stays owned by the caller (the JNI surface reference);
-    // EglBackend borrows it for the life of the object.
+    // Takes ownership of the ANativeWindow reference the JNI bridge took
+    // with ANativeWindow_fromSurface(): the destructor drops it, so every
+    // surface swap (rotation, split screen) ends balanced instead of leaking
+    // one window reference each time.
     explicit EglBackend(void* android_native_window) : window_(android_native_window) {}
     ~EglBackend() override;
 
@@ -24,9 +26,12 @@ public:
     void upload_rgb565(const uint16_t* pixels, int w, int h) override;
     void draw_quad(float x0, float y0, float x1, float y1) override;
     void swap() override;
+    // FrameRenderer::Backend::release -- public now: the run thread calls it
+    // before it exits, on the thread the context is current on. EGL state
+    // only; the window reference outlives it and is dropped by the destructor.
+    void release() noexcept override;
 
 private:
-    void release() noexcept;
 
     void*    window_ = nullptr;   // ANativeWindow*
     void*    display_ = nullptr;  // EGLDisplay

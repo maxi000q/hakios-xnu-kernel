@@ -89,6 +89,10 @@ bool Emulator::load_kernel(const uint8_t* bytes, size_t len,
 void Emulator::reset_cpu() {
     cpu_.reset(entry_pc_);
     halt_ = Halt{};
+    // Arm7Cpu::reset() zeroes info_.executed with the rest of Info; the
+    // slice bookkeeping must follow it, or the first slice of a restarted
+    // guest computes "0 - old_total" and the retired count wraps around.
+    slice_executed_ = 0;
 }
 
 bool Emulator::start(std::string* err) {
@@ -100,10 +104,16 @@ bool Emulator::start(std::string* err) {
         if (err) *err = "engine: no kernel loaded -- run the install first";
         return false;
     }
-    if (run_thread_.joinable()) return true;      // already running
+    if (thread_alive_.load()) return true;   // genuinely running
+    // A thread that ran to a halt has finished but was never joined: it is
+    // still joinable, and the old code read exactly that as "already
+    // running" -- which is why "run again" after the first halt did
+    // nothing. Join the corpse, then decide.
+    if (run_thread_.joinable()) run_thread_.join();
     if (state_ == State::kHalted) reset_cpu();    // a restart after a halt
     stop_requested_ = false;
     state_ = State::kRunning;
+    thread_alive_ = true;
     run_thread_ = std::thread([this] { run_loop(); });
     return true;
 }
@@ -115,11 +125,16 @@ void Emulator::pause() noexcept {
 }
 
 void Emulator::ensure_display() {
-    if (display_ready_) return;
+    if (display_ready_.load()) return;
+    // No backend yet is normal life (the install screen's first boot starts
+    // before the emulator screen exists): rendering is simply off, and the
+    // next pass -- the run thread checks every slice -- picks the display
+    // up when the app attaches one.
+    if (!renderer_.has_backend()) return;
     std::string err;
     if (renderer_.init(&err)) {
         display_ready_ = true;
-    } else if (renderer_.has_backend()) {
+    } else {
         std::lock_guard<std::mutex> lock(mu_);
         last_error_ = err;             // rendering is disabled, the run goes on
     }
@@ -129,17 +144,28 @@ void Emulator::run_loop() {
     // The frame clock is real time: slices of instructions, a frame out at
     // most every 33 ms, and the thread idles (never spins) once the guest
     // halts or a pause is requested.
-    ensure_display();                  // an EGL context belongs to this thread
     const auto start = std::chrono::steady_clock::now();
     int64_t now_ms = 0;
     while (!stop_requested_.load()) {
+        ensure_display();   // cheap when ready; picks up a mid-run attach
         if (!slice(slice_steps_)) break;          // halt: report and stand down
         now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                      std::chrono::steady_clock::now() - start).count();
         renderer_.render(now_ms);                 // the renderer paces itself
     }
     // A last frame so a halt is visible immediately, not at the next 33 ms.
+    // The frame is drawn even when the loop left through a pause request:
+    // pausing mid-paint must not freeze a half-updated texture.
+    ensure_display();
     renderer_.render(now_ms + FrameRenderer::kFrameIntervalMs);
+    // The EGL context was made current on THIS thread; it must be given up
+    // here, before the thread dies -- a context left current on a dead
+    // thread is undefined behavior on more than one Android GL driver, and
+    // the next run thread ("run again") builds its own anyway.
+    renderer_.release_on_thread();
+    display_ready_ = false;
+    // Last act: start() may now see the machine as restartable and join us.
+    thread_alive_ = false;
 }
 
 bool Emulator::slice(uint64_t steps) {
