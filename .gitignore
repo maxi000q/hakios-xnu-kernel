@@ -38,6 +38,15 @@
 !/.github/
 !/tests/
 !/scripts/
+# the Android build: the Gradle wrapper and the two project files are ours;
+# local.properties (the SDK path) and everything the build produces is not
+!/settings.gradle
+!/build.gradle
+!/gradle.properties
+!/gradlew
+!/gradlew.bat
+!/gradle/
+/gradle/wrapper/gradle-wrapper.jar.sha256
 
 # Android build output never belongs in the tree
 /app/build/

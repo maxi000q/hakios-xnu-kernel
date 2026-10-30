@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher mark: a dark chip, the install progress bar, and the 2:3
+     guest screen, which is what the app actually is. A vector, not a
+     picture: the repository ships no bitmaps, on purpose (LEGAL.md, and
+     the CI check). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#1C1C22"
+        android:strokeColor="#3D9BE9"
+        android:strokeWidth="2"
+        android:pathData="M8,6 h32 a4,4 0 0 1 4,4 v28 a4,4 0 0 1 -4,4 h-32 a4,4 0 0 1 -4,-4 v-28 a4,4 0 0 1 4,-4 z" />
+    <path
+        android:fillColor="#101014"
+        android:pathData="M16,12 h16 v20 h-16 z" />
+    <path
+        android:fillColor="#3D9BE9"
+        android:pathData="M16,12 h16 v2 h-16 z" />
+    <path
+        android:fillColor="#2A2A33"
+        android:pathData="M12,37 h24 v3 h-24 z" />
+    <path
+        android:fillColor="#3D9BE9"
+        android:pathData="M12,37 h14 v3 h-14 z" />
+</vector>

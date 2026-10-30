@@ -30,8 +30,9 @@ if(ANDROID)
     target_link_libraries(hakios_core PUBLIC EGL GLESv2 android)
 endif()
 
-# the JNI bridge is the app-facing surface of the core (stage 6)
+# the JNI bridge is the app-facing surface of the core (stage 6): the one
+# loadable library, with the whole core linked in
 if(ANDROID)
-    add_library(hakios_jni STATIC jni/hakios_jni.cpp)
-    target_link_libraries(hakios_jni PUBLIC hakios_core)
+    add_library(hakios_jni SHARED jni/hakios_jni.cpp)
+    target_link_libraries(hakios_jni PRIVATE hakios_core)
 endif()

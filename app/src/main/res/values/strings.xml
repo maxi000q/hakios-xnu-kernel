@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HakiOS</string>
+
+    <!-- the install screen: every line is a real step with real progress -->
+    <string name="install_title">Installing iOS 6</string>
+    <string name="install_step_image">Creating the emulated iPhone\'s memory</string>
+    <string name="install_step_download">Fetching the kernel cache from Apple\'s servers</string>
+    <string name="install_step_unpack">Unpacking the kernel cache</string>
+    <string name="install_step_load">Loading the kernel into the emulated iPhone</string>
+    <string name="install_step_boot">First boot</string>
+    <string name="install_note">Nothing of iOS is inside this app. The kernel cache
+(7.4 MB) is downloaded from Apple\'s own servers, the same file
+sysimage/ios6/fetch.sh fetches on a desktop. The system volume of this
+release\'s image stays on Apple\'s servers until the emulator grows the
+drivers to use it.</string>
+
+    <string name="key_dialog_title">This kernel cache is encrypted</string>
+    <string name="key_dialog_body">Apple stores the kernel cache of iOS 6
+AES-256 encrypted. To boot it, the app needs the key and IV of this exact
+file from your own research -- none are shipped, none are derived. Without
+a key you can still boot the bundled self-test kernel, which exercises the
+same loader, CPU and display without any Apple code.</string>
+    <string name="key_hint_iv">IV (32 hex characters)</string>
+    <string name="key_hint_key">Key (64 hex characters)</string>
+    <string name="key_action_use">Boot the self-test kernel</string>
+    <string name="key_action_ok">Load with this key</string>
+
+    <string name="emulator_status">state %1$s · %2$,d instructions · %3$.1f MIPS · %4$s resident</string>
+    <string name="emulator_pause">Pause</string>
+    <string name="emulator_resume">Resume</string>
+    <string name="emulator_halted">The guest halted: %1$s at pc 0x%2$08x</string>
+</resources>

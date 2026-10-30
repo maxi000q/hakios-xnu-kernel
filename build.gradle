@@ -1,0 +1,6 @@
+// The app edition's root build file. One plugin, one version, no flavors:
+// the universal APK of stage 10 is just `assembleRelease` with the three
+// ABIs the target class needs (devices/adreno-619/README.md).
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}

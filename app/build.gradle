@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.hakios.ios6'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.hakios.ios6'
+        minSdk 24          // Android 7.0: the floor the target doc set
+        targetSdk 34
+        versionCode 1
+        versionName '1.0-ios6'
+        // The universal APK of stage 10: every ABI the target class runs on.
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+        externalNativeBuild {
+            cmake {
+                arguments '-DCMAKE_BUILD_TYPE=Release'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            // the same sources tests/run_desktop_tests.sh compiles on a PC
+            path '../native/CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // none, on purpose: plain Activities, plain Views, one SurfaceView.
+    // Everything the emulator is lives in native/ under the same license
+    // as the rest of the project; nothing here pulls a library in.
+}
