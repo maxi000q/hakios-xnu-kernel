@@ -362,21 +362,18 @@ Arm7Cpu::Halt Arm7Cpu::execute_ldst_ext(uint32_t pc_addr, uint32_t insn) {
     if (rt == 15) return halt(Halt::kUnsupportedEncoding, pc_addr, insn, "halfword load to PC");
 
     uint32_t off;
-    // The halfword/signed extra load-store space has a documented ambiguity:
-    // the register-offset form is bits[11:8] SBZ (zero) with Rm at bits[3:0],
-    // while the immediate form encodes offset imm4H:imm4L with imm4H at
-    // bits[11:8]. For offsets 0-15 the two bit-alias. Resolution used here,
-    // matching what assemblers emit and what real kernels expect:
-    //   imm4H != 0            -> immediate offset imm4H:imm4L (unambiguous)
-    //   imm4H == 0, imm4L == 0 -> immediate #0  ("strh rX, [rY]", the common case)
-    //   imm4H == 0, imm4L != 0 -> register offset Rm = imm4L (the register form
-    //                             as keystone/gas assemble it)
-    const uint32_t immh = bits(insn, 11, 8);
-    const uint32_t imml = bits(insn, 3, 0);
-    if (immh != 0 || imml == 0) {
-        off = (immh << 4) | imml;
+    // Immediate vs register offset in this space is decided by bit 22 (the I
+    // bit), exactly as in the ordinary load-store space: set = the offset is
+    // imm4H:imm4L (bits 11-8 and 3-0), clear = the offset register Rm is
+    // bits 3-0 and bits 11-8 are SBZ. That bit is the whole story -- an
+    // earlier version of this decoder replaced it with a "which one does the
+    // nibble pattern mean" heuristic, and the stage-8 demo kernel's
+    // `strh r2, [r9], #2` came out as `strh r2, [r9, r2]`, writing every
+    // pixel of every row to an offset the kernel never asked for.
+    if (bit(insn, 22)) {
+        off = (bits(insn, 11, 8) << 4) | bits(insn, 3, 0);
     } else {
-        const uint32_t rm = imml;
+        const uint32_t rm = bits(insn, 3, 0);
         off = rm == 15 ? pc_addr + 8 : r_[rm];
     }
 
@@ -542,15 +539,25 @@ Arm7Cpu::Halt Arm7Cpu::execute(uint32_t pc_addr, uint32_t insn) {
         if (b7 && b4) {
             const uint32_t opn = bits(insn, 23, 20);
             const uint32_t nib74 = bits(insn, 7, 4);
-            if (!bit(insn, 24) &&
+            // The multiply space is bits 27-22 = 000000 with bits 7-4 = 1001;
+            // without that 0x9 the test below swallows every *post-indexed*
+            // extra load/store (bit 24 = 0) whose opcode nibble happens to
+            // match, and `strh r2, [r9], #2` executes as an SMULL -- the
+            // stage-8 demo kernel watched its framebuffer pointer turn into
+            // a multiply result that way.
+            if (nib74 == 0x9 && !bit(insn, 24) &&
                 (opn == 0x0 || opn == 0x2 || opn == 0x8 || opn == 0xA || opn == 0xC || opn == 0xE))
                 return execute_multiply(insn);
             if (nib74 == 0xB || nib74 == 0xD || nib74 == 0xF)
                 return execute_ldst_ext(pc_addr, insn);
             return halt(Halt::kUnknownInstruction, pc_addr, insn, "extension-space instruction not implemented");
         }
-        if (b7)  // bits 27-25 = 000, bit7 = 1, bit4 = 0: undefined space
-            return halt(Halt::kUnknownInstruction, pc_addr, insn, "undefined encoding space");
+        // A set bit 7 with bit 4 clear is nothing of its own: it is the low
+        // bit of a 5-bit immediate shift amount (lsl #5 assembles to operand2
+        // 0x282), and only bit 4 selects the register-shifted form, which
+        // dp_operand2() decodes. Rejecting bit 7 here -- as this decoder once
+        // did, until the stage-8 demo kernel assembled `lsl r2, r2, #5` and
+        // halted on it -- turns every odd shift amount into an error.
 
         if (b4) {
             // register-shifted data processing -- unless the opcode byte is
