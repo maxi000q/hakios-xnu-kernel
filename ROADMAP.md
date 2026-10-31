@@ -50,3 +50,32 @@ XNU 2107 expects) is the work of the stages after this one ships. The app will s
 is doing at every step of the install screen, and will not pretend to be more than it is.
 
 The 10 stages above are the deliverable of this effort; stage 10 builds and releases them.
+
+## After the first release: what the machine names next
+
+The ten stages shipped as release 1.2. The work after it follows the same
+rule the roadmap always had — the guest itself says what is missing, in the
+language of the halt report, and nothing is faked in front of it.
+
+**1.3 (this tree): the VFP, the banked register file, and the exception
+return.** The kernel's first halt after release 1.2 was the VFP probe of
+`vfp_init`; the interpreter now carries a VFPv3-D16 (every encoding measured
+off the keystone assembler — the s-register index puts its extra bit LOW,
+the d-register HIGH; the unary space makes bits 7 and 22 opcode; the
+fixed-point VCVT is a read-modify-write of Sd that does not encode a source
+register at all), the Cortex-A8's identity values (FPSID 0x410330C0, MVFR0
+0x11110222, MVFR1 0x00011111), LDRD/STRD, the banked register file with
+per-mode r13/r14, the FIQ bank of r8-r12, per-mode SPSRs, MOVS pc / LDM
+{pc}^ exception returns, user-bank LDM^/STM^, and a CPS whose mode form
+switches banks (and whose interrupt forms, previously mis-decoded as data
+processing, now really set and clear the masks). With that, Apple's own
+6.1.3 kernel cache runs past `vfp_init`, through machine init and into the
+prelinked kexts — over five million instructions — and stops at the first
+Thumb-2 call. `tests/test_vfp.cpp` pins all of it; the whole rig stays
+green.
+
+**Named next, by the halt itself: the Thumb-2 interpreter.** The kexts are
+compiled Thumb-2, and so is all of userland — iOS 6 apps will need it
+everywhere. After that, the same run names the devices XNU 2107 probes and
+the boot args iBoot would hand over. None of it is small, and none of it
+will be pretended.

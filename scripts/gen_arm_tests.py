@@ -320,6 +320,243 @@ PROGRAMS = [
         """,
         [],
     ),
+    (
+        # The VFP, f32: immediates, arithmetic, the high bank of s16-s31,
+        # and results read back through vmov r, s. sqrt(6) is checked in
+        # the test against the host's own float conversion.
+        "vfp_arith",
+        0x1000,
+        """
+        vmov.f32 s0, #2.0
+        vmov.f32 s1, #3.0
+        vadd.f32 s2, s0, s1
+        vsub.f32 s3, s1, s0
+        vmul.f32 s4, s0, s1
+        vdiv.f32 s5, s1, s0
+        vsqrt.f32 s6, s4
+        vneg.f32 s7, s3
+        vabs.f32 s8, s7
+        mov r10, #0
+        vmov s9, r10
+        vmla.f32 s9, s0, s1
+        vmov.f32 s16, #2.0
+        vadd.f32 s17, s16, s1
+        vmov r0, s2
+        vmov r1, s3
+        vmov r2, s4
+        vmov r3, s5
+        vmov r4, s6
+        vmov r5, s7
+        vmov r6, s8
+        vmov r7, s9
+        vmov r8, s17
+        """,
+        [],
+    ),
+    (
+        # The VFP, f64: immediates, arithmetic, and the two-core-register
+        # vmov that reads a d register out.
+        "vfp_d64",
+        0x1000,
+        """
+        vmov.f64 d0, #1.0
+        vmov.f64 d1, #2.0
+        vadd.f64 d2, d0, d1
+        vsub.f64 d3, d1, d0
+        vmul.f64 d4, d0, d1
+        vdiv.f64 d5, d1, d0
+        vmov r0, r1, d2
+        vmov r2, r3, d3
+        vmov r4, r5, d4
+        vmov r6, r7, d5
+        """,
+        [],
+    ),
+    (
+        # The VFP loads and stores: single and double, immediate offsets in
+        # both directions, the multiple forms, and vpush/vpop over a real
+        # stack. The memory itself is checked in the test.
+        "vfp_ldst",
+        0x1000,
+        """
+        movw r10, #0x0000
+        movt r10, #0x20
+        movw r13, #0x1000
+        movt r13, #0x20
+        vmov.f32 s0, #2.0
+        vmov.f32 s1, #3.0
+        vstr s0, [r10]
+        vstmia r10, {s0-s1}
+        vldr s2, [r10]
+        vldr s3, [r10, #4]
+        vldmia r10, {s4-s5}
+        vmov r0, s2
+        vmov r1, s3
+        vmov r2, s4
+        vmov r3, s5
+        vmov.f64 d0, #1.0
+        vstr d0, [r10, #16]
+        vldr d1, [r10, #16]
+        vmov r4, r5, d1
+        vpush {d0}
+        vpop {d2}
+        vmov r6, r7, d2
+        """,
+        [],
+    ),
+    (
+        # The VFP system registers: the Cortex-A8 identity the kernel's
+        # vfp_init reads, the compare path with its FPSCR -> APSR move, and
+        # FPEXC stored and read back.
+        "vfp_sysregs",
+        0x1000,
+        """
+        vmrs r0, fpsid
+        vmrs r1, mvfr0
+        vmrs r2, mvfr1
+        vmov.f32 s0, #1.0
+        vmov.f32 s1, #1.0
+        vcmp.f32 s0, s1
+        vmrs APSR_nzcv, fpscr
+        mrs r3, cpsr
+        vmov.f32 s3, #-1.0
+        vcmp.f32 s3, s0
+        vmrs APSR_nzcv, fpscr
+        mrs r4, cpsr
+        vmrs r5, fpscr
+        vmsr fpexc, r0
+        vmrs r6, fpexc
+        """,
+        [],
+    ),
+    (
+        # The conversions: integer to float and back with both roundings,
+        # f32 to f64 and back, an unsigned 32-bit source, the saturation of
+        # an out-of-range conversion, and a fixed-point fraction.
+        "vfp_cvt",
+        0x1000,
+        """
+        mov r0, #7
+        vmov s0, r0
+        vcvt.f32.s32 s1, s0
+        vmov r1, s1
+        vcvt.s32.f32 s2, s1
+        vmov r2, s2
+        vmov.f32 s3, #1.5
+        vcvt.s32.f32 s4, s3
+        vmov r3, s4
+        vcvtr.s32.f32 s5, s3
+        vmov r4, s5
+        vcvt.f64.f32 d0, s1
+        vcvt.f32.f64 s6, d0
+        vmov r5, s6
+        mvn r6, #0
+        vmov s7, r6
+        vcvt.f32.u32 s8, s7
+        vmov r7, s8
+        vcvt.u32.f32 s9, s8
+        vmov r8, s9
+        vmov.f32 s11, #6.0
+        vcvt.s32.f32 s11, s11, #2
+        vmov r9, s11
+        """,
+        [],
+    ),
+    (
+        # LDRD/STRD: an even register pair, eight bytes, and the memory
+        # checked word by word in the test.
+        "ldrd_strd",
+        0x1000,
+        """
+        movw r0, #0x0000
+        movt r0, #0x20
+        movw r2, #0x3412
+        movt r2, #0x7856
+        movw r3, #0x0F0E
+        movt r3, #0x9876
+        strd r2, r3, [r0]
+        ldrd r4, r5, [r0]
+        strd r2, r3, [r0, #8]
+        ldrd r6, r7, [r0, #8]
+        """,
+        [],
+    ),
+    (
+        # The banked register file: r13 per mode, the FIQ bank of r8-r12,
+        # an SPSR written and read, and the exception return (movs pc with
+        # the SPSR restoring the Z flag and the mode).
+        "banked_modes",
+        0x1000,
+        """
+        mov r13, #0x1001
+        msr cpsr_c, #0x12
+        mov r13, #0x2002
+        msr cpsr_c, #0x13
+        mov r1, r13
+        msr cpsr_c, #0x12
+        mov r2, r13
+        msr cpsr_c, #0x13
+        msr cpsr_c, #0x11
+        mov r8, #0x77
+        mov r13, #0x3301
+        msr cpsr_c, #0x13
+        mov r8, #0x88
+        mov r3, r8
+        msr cpsr_c, #0x11
+        mov r4, r8
+        mov r5, r13
+        msr cpsr_c, #0x13
+        movw r0, #0x0013
+        movt r0, #0x6000
+        msr spsr_fsxc, r0
+        mrs r6, spsr
+        mov r7, pc
+        add r7, r7, #4
+        movs pc, r7
+        mrs r8, cpsr
+        """,
+        [],
+    ),
+    (
+        # The user-bank transfer: stmia {r13}^ stores the USER bank's r13
+        # while in SVC, ldmia {r13}^ loads into the USER bank leaving the
+        # SVC view untouched -- checked by switching to USR and reading it.
+        "ldm_user_bank",
+        0x1000,
+        """
+        movw r2, #0x0000
+        movt r2, #0x20
+        movw r0, #0x0001
+        movt r0, #0xAAAA
+        msr cpsr_c, #0x10
+        mov r13, r0
+        msr cpsr_c, #0x13
+        stmia r2, {r13}^
+        movw r1, #0x0002
+        movt r1, #0xBBBB
+        str r1, [r2]
+        ldmia r2, {r13}^
+        mov r3, r13
+        msr cpsr_c, #0x10
+        mov r4, r13
+        msr cpsr_c, #0x13
+        """,
+        [],
+    ),
+    (
+        # CPS: the interrupt masks set and cleared, and the mode form.
+        "cps_forms",
+        0x1000,
+        """
+        cpsid if
+        mrs r0, cpsr
+        cpsie i
+        mrs r1, cpsr
+        cps #0x13
+        mrs r2, cpsr
+        """,
+        [],
+    ),
 ]
 
 # bx_arm is assembled by the test itself: it places UDF at 0x200000 (VRAM)

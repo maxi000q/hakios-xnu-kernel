@@ -158,6 +158,93 @@ static const uint32_t prog_words_bx_arm[] = {
 
 static const char prog_text_bx_arm[] = "mov r0, #0x200000 | bx r0 | mov r1, #1";
 
+static const uint32_t prog_words_vfp_arith[] = {
+    0xEEB00A00, 0xEEF00A08, 0xEE301A20, 0xEE701AC0,
+    0xEE202A20, 0xEEC02A80, 0xEEB13AC2, 0xEEF13A61,
+    0xEEB04AE3, 0xE3A0A000, 0xEE04AA90, 0xEE404A20,
+    0xEEB08A00, 0xEE788A20, 0xEE110A10, 0xEE111A90,
+    0xEE122A10, 0xEE123A90, 0xEE134A10, 0xEE135A90,
+    0xEE146A10, 0xEE147A90, 0xEE188A90, 0xE7F000F0,
+};
+
+static const char prog_text_vfp_arith[] = "vmov.f32 s0, #2.0 | vmov.f32 s1, #3.0 | vadd.f32 s2, s0, s1 | vsub.f32 s3, s1, s0 | vmul.f32 s4, s0, s1 | vdiv.f32 s5, s1, s0 | vsqrt.f32 s6, s4 | vneg.f32 s7, s3 | vabs.f32 s8, s7 | mov r10, #0 | vmov s9, r10 | vmla.f32 s9, s0, s1 | vmov.f32 s16, #2.0 | vadd.f32 s17, s16, s1 | vmov r0, s2 | vmov r1, s3 | vmov r2, s4 | vmov r3, s5 | vmov r4, s6 | vmov r5, s7 | vmov r6, s8 | vmov r7, s9 | vmov r8, s17";
+
+static const uint32_t prog_words_vfp_d64[] = {
+    0xEEB70B00, 0xEEB01B00, 0xEE302B01, 0xEE313B40,
+    0xEE204B01, 0xEE815B00, 0xEC510B12, 0xEC532B13,
+    0xEC554B14, 0xEC576B15, 0xE7F000F0,
+};
+
+static const char prog_text_vfp_d64[] = "vmov.f64 d0, #1.0 | vmov.f64 d1, #2.0 | vadd.f64 d2, d0, d1 | vsub.f64 d3, d1, d0 | vmul.f64 d4, d0, d1 | vdiv.f64 d5, d1, d0 | vmov r0, r1, d2 | vmov r2, r3, d3 | vmov r4, r5, d4 | vmov r6, r7, d5";
+
+static const uint32_t prog_words_vfp_ldst[] = {
+    0xE300A000, 0xE340A020, 0xE301D000, 0xE340D020,
+    0xEEB00A00, 0xEEF00A08, 0xED8A0A00, 0xEC8A0A02,
+    0xED9A1A00, 0xEDDA1A01, 0xEC9A2A02, 0xEE110A10,
+    0xEE111A90, 0xEE122A10, 0xEE123A90, 0xEEB70B00,
+    0xED8A0B04, 0xED9A1B04, 0xEC554B11, 0xED2D0B02,
+    0xECBD2B02, 0xEC576B12, 0xE7F000F0,
+};
+
+static const char prog_text_vfp_ldst[] = "movw r10, #0x0000 | movt r10, #0x20 | movw r13, #0x1000 | movt r13, #0x20 | vmov.f32 s0, #2.0 | vmov.f32 s1, #3.0 | vstr s0, [r10] | vstmia r10, {s0-s1} | vldr s2, [r10] | vldr s3, [r10, #4] | vldmia r10, {s4-s5} | vmov r0, s2 | vmov r1, s3 | vmov r2, s4 | vmov r3, s5 | vmov.f64 d0, #1.0 | vstr d0, [r10, #16] | vldr d1, [r10, #16] | vmov r4, r5, d1 | vpush {d0} | vpop {d2} | vmov r6, r7, d2";
+
+static const uint32_t prog_words_vfp_sysregs[] = {
+    0xEEF00A10, 0xEEF71A10, 0xEEF62A10, 0xEEB70A00,
+    0xEEF70A00, 0xEEB40A60, 0xEEF1FA10, 0xE10F3000,
+    0xEEFF1A00, 0xEEF41A40, 0xEEF1FA10, 0xE10F4000,
+    0xEEF15A10, 0xEEE80A10, 0xEEF86A10, 0xE7F000F0,
+};
+
+static const char prog_text_vfp_sysregs[] = "vmrs r0, fpsid | vmrs r1, mvfr0 | vmrs r2, mvfr1 | vmov.f32 s0, #1.0 | vmov.f32 s1, #1.0 | vcmp.f32 s0, s1 | vmrs APSR_nzcv, fpscr | mrs r3, cpsr | vmov.f32 s3, #-1.0 | vcmp.f32 s3, s0 | vmrs APSR_nzcv, fpscr | mrs r4, cpsr | vmrs r5, fpscr | vmsr fpexc, r0 | vmrs r6, fpexc";
+
+static const uint32_t prog_words_vfp_cvt[] = {
+    0xE3A00007, 0xEE000A10, 0xEEF80AC0, 0xEE101A90,
+    0xEEBD1AE0, 0xEE112A10, 0xEEF71A08, 0xEEBD2AE1,
+    0xEE123A10, 0xEEFD2A61, 0xEE124A90, 0xEEB70AE0,
+    0xEEB73BC0, 0xEE135A10, 0xE3E06000, 0xEE036A90,
+    0xEEB84A63, 0xEE147A10, 0xEEFC4AC4, 0xEE148A90,
+    0xEEF15A08, 0xEEFE5ACF, 0xEE159A90, 0xE7F000F0,
+};
+
+static const char prog_text_vfp_cvt[] = "mov r0, #7 | vmov s0, r0 | vcvt.f32.s32 s1, s0 | vmov r1, s1 | vcvt.s32.f32 s2, s1 | vmov r2, s2 | vmov.f32 s3, #1.5 | vcvt.s32.f32 s4, s3 | vmov r3, s4 | vcvtr.s32.f32 s5, s3 | vmov r4, s5 | vcvt.f64.f32 d0, s1 | vcvt.f32.f64 s6, d0 | vmov r5, s6 | mvn r6, #0 | vmov s7, r6 | vcvt.f32.u32 s8, s7 | vmov r7, s8 | vcvt.u32.f32 s9, s8 | vmov r8, s9 | vmov.f32 s11, #6.0 | vcvt.s32.f32 s11, s11, #2 | vmov r9, s11";
+
+static const uint32_t prog_words_ldrd_strd[] = {
+    0xE3000000, 0xE3400020, 0xE3032412, 0xE3472856,
+    0xE3003F0E, 0xE3493876, 0xE1C020F0, 0xE1C040D0,
+    0xE1C020F8, 0xE1C060D8, 0xE7F000F0,
+};
+
+static const char prog_text_ldrd_strd[] = "movw r0, #0x0000 | movt r0, #0x20 | movw r2, #0x3412 | movt r2, #0x7856 | movw r3, #0x0F0E | movt r3, #0x9876 | strd r2, r3, [r0] | ldrd r4, r5, [r0] | strd r2, r3, [r0, #8] | ldrd r6, r7, [r0, #8]";
+
+static const uint32_t prog_words_banked_modes[] = {
+    0xE301D001, 0xE321F012, 0xE302D002, 0xE321F013,
+    0xE1A0100D, 0xE321F012, 0xE1A0200D, 0xE321F013,
+    0xE321F011, 0xE3A08077, 0xE303D301, 0xE321F013,
+    0xE3A08088, 0xE1A03008, 0xE321F011, 0xE1A04008,
+    0xE1A0500D, 0xE321F013, 0xE3000013, 0xE3460000,
+    0xE16FF000, 0xE14F6000, 0xE1A0700F, 0xE2877004,
+    0xE1B0F007, 0xE10F8000, 0xE7F000F0,
+};
+
+static const char prog_text_banked_modes[] = "mov r13, #0x1001 | msr cpsr_c, #0x12 | mov r13, #0x2002 | msr cpsr_c, #0x13 | mov r1, r13 | msr cpsr_c, #0x12 | mov r2, r13 | msr cpsr_c, #0x13 | msr cpsr_c, #0x11 | mov r8, #0x77 | mov r13, #0x3301 | msr cpsr_c, #0x13 | mov r8, #0x88 | mov r3, r8 | msr cpsr_c, #0x11 | mov r4, r8 | mov r5, r13 | msr cpsr_c, #0x13 | movw r0, #0x0013 | movt r0, #0x6000 | msr spsr_fsxc, r0 | mrs r6, spsr | mov r7, pc | add r7, r7, #4 | movs pc, r7 | mrs r8, cpsr";
+
+static const uint32_t prog_words_ldm_user_bank[] = {
+    0xE3002000, 0xE3402020, 0xE3000001, 0xE34A0AAA,
+    0xE321F010, 0xE1A0D000, 0xE321F013, 0xE8C22000,
+    0xE3001002, 0xE34B1BBB, 0xE5821000, 0xE8D22000,
+    0xE1A0300D, 0xE321F010, 0xE1A0400D, 0xE321F013,
+    0xE7F000F0,
+};
+
+static const char prog_text_ldm_user_bank[] = "movw r2, #0x0000 | movt r2, #0x20 | movw r0, #0x0001 | movt r0, #0xAAAA | msr cpsr_c, #0x10 | mov r13, r0 | msr cpsr_c, #0x13 | stmia r2, {r13}^ | movw r1, #0x0002 | movt r1, #0xBBBB | str r1, [r2] | ldmia r2, {r13}^ | mov r3, r13 | msr cpsr_c, #0x10 | mov r4, r13 | msr cpsr_c, #0x13";
+
+static const uint32_t prog_words_cps_forms[] = {
+    0xF10C00C0, 0xE10F0000, 0xF1080080, 0xE10F1000,
+    0xF1020013, 0xE10F2000, 0xE7F000F0,
+};
+
+static const char prog_text_cps_forms[] = "cpsid if | mrs r0, cpsr | cpsie i | mrs r1, cpsr | cps #0x13 | mrs r2, cpsr";
+
 static const ArmProg kArmProgs[] = {
     {"flags_data_proc", 0x1000, prog_words_flags_data_proc,
      sizeof(prog_words_flags_data_proc) / sizeof(prog_words_flags_data_proc[0]), prog_text_flags_data_proc},
@@ -197,6 +284,24 @@ static const ArmProg kArmProgs[] = {
      sizeof(prog_words_bx_thumb) / sizeof(prog_words_bx_thumb[0]), prog_text_bx_thumb},
     {"bx_arm", 0x1000, prog_words_bx_arm,
      sizeof(prog_words_bx_arm) / sizeof(prog_words_bx_arm[0]), prog_text_bx_arm},
+    {"vfp_arith", 0x1000, prog_words_vfp_arith,
+     sizeof(prog_words_vfp_arith) / sizeof(prog_words_vfp_arith[0]), prog_text_vfp_arith},
+    {"vfp_d64", 0x1000, prog_words_vfp_d64,
+     sizeof(prog_words_vfp_d64) / sizeof(prog_words_vfp_d64[0]), prog_text_vfp_d64},
+    {"vfp_ldst", 0x1000, prog_words_vfp_ldst,
+     sizeof(prog_words_vfp_ldst) / sizeof(prog_words_vfp_ldst[0]), prog_text_vfp_ldst},
+    {"vfp_sysregs", 0x1000, prog_words_vfp_sysregs,
+     sizeof(prog_words_vfp_sysregs) / sizeof(prog_words_vfp_sysregs[0]), prog_text_vfp_sysregs},
+    {"vfp_cvt", 0x1000, prog_words_vfp_cvt,
+     sizeof(prog_words_vfp_cvt) / sizeof(prog_words_vfp_cvt[0]), prog_text_vfp_cvt},
+    {"ldrd_strd", 0x1000, prog_words_ldrd_strd,
+     sizeof(prog_words_ldrd_strd) / sizeof(prog_words_ldrd_strd[0]), prog_text_ldrd_strd},
+    {"banked_modes", 0x1000, prog_words_banked_modes,
+     sizeof(prog_words_banked_modes) / sizeof(prog_words_banked_modes[0]), prog_text_banked_modes},
+    {"ldm_user_bank", 0x1000, prog_words_ldm_user_bank,
+     sizeof(prog_words_ldm_user_bank) / sizeof(prog_words_ldm_user_bank[0]), prog_text_ldm_user_bank},
+    {"cps_forms", 0x1000, prog_words_cps_forms,
+     sizeof(prog_words_cps_forms) / sizeof(prog_words_cps_forms[0]), prog_text_cps_forms},
 };
-static const size_t kArmProgCount = 19;
+static const size_t kArmProgCount = 28;
 

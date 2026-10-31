@@ -88,14 +88,18 @@ with a key supplied at run time from published research (never stored in
 this repository): fetch from Apple's servers, IMG3 parse, AES-256-CBC
 decrypt, comp/LZSS inflate to the 13.4 MB prelinked armv7 Mach-O, segments
 into the emulated iPhone's RAM at their linked addresses, and the CPU
-turned loose at 0x80086084 -- Apple's own entry point. The kernel runs its
-real boot path for millions of instructions (start, the exception vectors,
-CP15 bring-up through the A4's system coprocessor, pmap and machine init)
-and halts at the first thing the machine does not have: the VFP unit it
-probes during `vfp_init`, reported by name with the PC and the instruction
-word. The next stages of the machine are therefore named by the kernel
-itself: VFP, the devices XNU 2107 probes, and the boot args iBoot would
-hand over -- none of them pretended, all of them on the roadmap.
+turned loose at 0x80086084 -- Apple's own entry point. `tests/run_ios6_
+kernel.cpp` is this run as a repeatable desktop rig. The kernel runs its
+real boot path -- start, the exception vectors, CP15 bring-up through the
+A4's system coprocessor, pmap and machine init, the VFP probe of
+`vfp_init` (the interpreter's VFPv3-D16 answers with the Cortex-A8's own
+FPSID/MVFR/FPEXC values, and the probe passes) -- for over five million
+instructions, on into the prelinked kexts, and halts at the first thing
+the machine does not have: a Thumb-2 function call (`BLX immediate` at
+0x802B985C), reported by name with the PC and the instruction word. The
+next stages of the machine are therefore named by the kernel itself: the
+Thumb-2 interpreter, the devices XNU 2107 probes, and the boot args iBoot
+would hand over -- none of them pretended, all of them on the roadmap.
 
 ## The dyld shared cache
 

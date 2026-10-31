@@ -67,20 +67,24 @@ is a public standard, and the loader refuses to guess: without a key it says
 exactly that). With a key, the install places the actual iOS 6.1.3 kernel of
 the iPhone 4 into the emulated machine.
 
-**What boots after that, honestly:** this release's kernel path is real
-end to end and has been executed against Apple's own file: with a correct
-key, the install decrypts the actual 6.1.3 kernel cache of the iPhone 4,
-inflates the 13.4 MB prelinked armv7 Mach-O, places its segments at their
-linked addresses in the emulated iPhone's RAM, and starts Apple's own
-entry point. The kernel then runs its real boot path for millions of
-instructions — start, the exception vectors, CP15 bring-up through the
-A4's modelled system coprocessor, pmap and machine init — at a research
-interpreter's pace, and halts at the first thing the machine does not
-have yet: the VFP unit it probes, then (once VFP exists) the devices and
-the boot args iBoot would hand over. The app reports that halt in the
-kernel's own terms — reason, PC, the offending instruction word. No
-interface ships in this release, and none is faked: the roadmap never
-promised a phone-in-an-app, and neither does the app.
+**What boots after that, honestly:** the kernel path is real end to end and
+has been executed against Apple's own file: with a correct key, the install
+decrypts the actual 6.1.3 kernel cache of the iPhone 4, inflates the 13.4 MB
+prelinked armv7 Mach-O, places its segments at their linked addresses in the
+emulated iPhone's RAM, and starts Apple's own entry point. The kernel then
+runs its real boot path — start, the exception vectors, CP15 bring-up through
+the A4's modelled system coprocessor, pmap and machine init, the VFP probe of
+`vfp_init` over this release's modelled VFPv3-D16 (FPSID, MVFR0/1, FPEXC —
+the Cortex-A8's own identity values), the banked register file with its SPSR
+exception returns, and on into the prelinked kexts — for **over five million
+instructions**, at a research interpreter's pace, and halts at the first
+thing the machine does not have yet: a Thumb-2 function call (`BLX`) in the
+kexts. The app reports that halt in the kernel's own terms — reason, PC, the
+offending instruction word. `tests/run_ios6_kernel.cpp` is that run as a
+desktop rig (the key is an argument, from your own research; the repository
+ships none). No interface ships in this release, and none is faked: the
+machine itself names the next stage — the Thumb-2 interpreter — and the
+roadmap never promised a phone-in-an-app, and neither does the app.
 
 ## Requirements
 
