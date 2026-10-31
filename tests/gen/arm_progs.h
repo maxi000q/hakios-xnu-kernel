@@ -74,6 +74,29 @@ static const uint32_t prog_words_mrs_msr[] = {
 
 static const char prog_text_mrs_msr[] = "mrs r0, cpsr | msr cpsr_c, #0x10 | mrs r1, cpsr | msr cpsr_f, #0x20000000 | mrs r2, cpsr | msr cpsr_c, r0 | mrs r3, cpsr";
 
+static const uint32_t prog_words_movw_movt[] = {
+    0xE30C0404, 0xE3400024, 0xE30B1EEF, 0xE3500000,
+    0x13A02055, 0xE1510001, 0x03A030AA, 0xE34D1EAD,
+    0xE7F000F0,
+};
+
+static const char prog_text_movw_movt[] = "movw r0, #0xc404 | movt r0, #0x24 | movw r1, #0xbeef | cmp r0, #0 | movne r2, #0x55 | cmp r1, r1 | moveq r3, #0xAA | movt r1, #0xdead";
+
+static const uint32_t prog_words_cp15_system[] = {
+    0xEE100F10, 0xEE101FB0, 0xEE112F10, 0xE3003123,
+    0xEE023F10, 0xEE124F10, 0xF57FF04F, 0xF57FF05F,
+    0xF57FF06F, 0xE320F000, 0xE320F002, 0xF5D0F000,
+    0xE3A05007, 0xE7F000F0,
+};
+
+static const char prog_text_cp15_system[] = "mrc p15, 0, r0, c0, c0, 0 | mrc p15, 0, r1, c0, c0, 5 | mrc p15, 0, r2, c1, c0, 0 | mov r3, #0x123 | mcr p15, 0, r3, c2, c0, 0 | mrc p15, 0, r4, c2, c0, 0 | dsb sy | dmb sy | isb sy | nop | wfe | pld [r0] | mov r5, #7";
+
+static const uint32_t prog_words_wfi[] = {
+    0xE3A00001, 0xE320F003, 0xE3A00002, 0xE7F000F0,
+};
+
+static const char prog_text_wfi[] = "mov r0, #1 | wfi | mov r0, #2";
+
 static const uint32_t prog_words_conds[] = {
     0xE3A00000, 0xE3500000, 0x0A000000, 0xE3A010FF,
     0xE3500001, 0xBA000000, 0xE3A020FF, 0xE3500000,
@@ -150,6 +173,12 @@ static const ArmProg kArmProgs[] = {
      sizeof(prog_words_mul_clz) / sizeof(prog_words_mul_clz[0]), prog_text_mul_clz},
     {"mrs_msr", 0x1000, prog_words_mrs_msr,
      sizeof(prog_words_mrs_msr) / sizeof(prog_words_mrs_msr[0]), prog_text_mrs_msr},
+    {"movw_movt", 0x1000, prog_words_movw_movt,
+     sizeof(prog_words_movw_movt) / sizeof(prog_words_movw_movt[0]), prog_text_movw_movt},
+    {"cp15_system", 0x1000, prog_words_cp15_system,
+     sizeof(prog_words_cp15_system) / sizeof(prog_words_cp15_system[0]), prog_text_cp15_system},
+    {"wfi", 0x1000, prog_words_wfi,
+     sizeof(prog_words_wfi) / sizeof(prog_words_wfi[0]), prog_text_wfi},
     {"conds", 0x1000, prog_words_conds,
      sizeof(prog_words_conds) / sizeof(prog_words_conds[0]), prog_text_conds},
     {"vram_through_cpu", 0x1000, prog_words_vram_through_cpu,
@@ -169,5 +198,5 @@ static const ArmProg kArmProgs[] = {
     {"bx_arm", 0x1000, prog_words_bx_arm,
      sizeof(prog_words_bx_arm) / sizeof(prog_words_bx_arm[0]), prog_text_bx_arm},
 };
-static const size_t kArmProgCount = 16;
+static const size_t kArmProgCount = 19;
 

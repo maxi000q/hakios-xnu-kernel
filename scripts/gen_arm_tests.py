@@ -158,6 +158,61 @@ PROGRAMS = [
         [],
     ),
     (
+        # MOVW/MOVT build every address constant on armv7 -- and their
+        # encodings sit one S bit away from TST (0x31) and CMP (0x35), which
+        # is why the cmp instructions ride along: an interpreter that mixes
+        # them up clobbers a register on every compare (the rig caught
+        # exactly that when these were added).
+        "movw_movt",
+        0x1000,
+        """
+        movw r0, #0xc404
+        movt r0, #0x24
+        movw r1, #0xbeef
+        cmp r0, #0
+        movne r2, #0x55
+        cmp r1, r1
+        moveq r3, #0xAA
+        movt r1, #0xdead
+        """,
+        [],
+    ),
+    (
+        # The A4's system coprocessor and the barrier/hint space: identity
+        # reads with the model values, a write/read-back pair through TTBR0,
+        # and the barriers/hints the kernel's own code is full of.
+        "cp15_system",
+        0x1000,
+        """
+        mrc p15, 0, r0, c0, c0, 0
+        mrc p15, 0, r1, c0, c0, 5
+        mrc p15, 0, r2, c1, c0, 0
+        mov r3, #0x123
+        mcr p15, 0, r3, c2, c0, 0
+        mrc p15, 0, r4, c2, c0, 0
+        dsb sy
+        dmb sy
+        isb sy
+        nop
+        wfe
+        pld [r0]
+        mov r5, #7
+        """,
+        [],
+    ),
+    (
+        # WFI in a machine with no interrupt source is a clean, named halt:
+        # the instruction after it must never run.
+        "wfi",
+        0x1000,
+        """
+        mov r0, #1
+        wfi
+        mov r0, #2
+        """,
+        [],
+    ),
+    (
         "conds",
         0x1000,
         """

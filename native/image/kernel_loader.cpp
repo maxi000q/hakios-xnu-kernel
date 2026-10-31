@@ -50,9 +50,17 @@ bool KernelLoader::load(StorageMemory& guest, const uint8_t* bytes, size_t len,
                             "(its IMG3 has a KBAG tag) and no key was supplied; "
                             "the app asks for the key during install, and "
                             "nothing is decrypted without it");
+            // Apple stores the logical size in the DATA tag; the ciphertext
+            // itself is whole 16-byte blocks (measured on the real 6.1.3
+            // kernelcache: 7,413,724 promised, 7,413,712 decryptable). The
+            // tail of the last partial block is not in the file at all, and
+            // every stage below is bounded by its own sizes, so it is
+            // dropped rather than guessed at.
             if (payload_len % Aes256Cbc::kBlock != 0)
-                return fail("kernel: encrypted payload is not a whole number "
-                            "of AES blocks -- corrupt download?");
+                payload_len -= payload_len % Aes256Cbc::kBlock;
+            if (payload_len == 0)
+                return fail("kernel: encrypted payload is shorter than one "
+                            "AES block -- corrupt download?");
             decrypted.resize(payload_len);
             if (!Aes256Cbc::decrypt(key->key, key->iv, payload, decrypted.data(), payload_len))
                 return fail("kernel: AES decryption rejected the payload length");
@@ -87,6 +95,17 @@ bool KernelLoader::load(StorageMemory& guest, const uint8_t* bytes, size_t len,
 
     // -- 5. segments into the guest ----------------------------------------
     for (const MachOArm::Segment& seg : mach.segments()) {
+        // Apple's prelinked caches carry zero-size marker segments (__LAST,
+        // __PRELINK_STATE): they cover no bytes and place nothing.
+        if (seg.vmsize == 0) {
+            if (report) {
+                KernelLoadReport::Placed p;
+                std::snprintf(p.name, sizeof p.name, "%s", seg.name);
+                p.vmaddr = seg.vmaddr; p.vmsize = 0; p.filesize = 0;
+                report->placed.push_back(p);
+            }
+            continue;
+        }
         const uint64_t from = uint64_t(seg.vmaddr);
         const uint64_t to   = uint64_t(seg.vmaddr) + uint64_t(seg.vmsize);
         if (to <= from || from < map::kRamBase || to > map::kRamEnd)

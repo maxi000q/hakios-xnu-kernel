@@ -112,12 +112,14 @@ const char* Arm7Cpu::halt_name(Halt h) {
     case Halt::kMisalignedPc: return "misaligned pc";
     case Halt::kFetchFault: return "fetch fault";
     case Halt::kDataFault: return "data fault";
+    case Halt::kWaitForInterrupt: return "wait for interrupt";
     }
     return "?";
 }
 
-void Arm7Cpu::reset(uint32_t pc) {
+void Arm7Cpu::reset(uint32_t pc, uint32_t sp) {
     std::memset(r_, 0, sizeof r_);
+    r_[13] = sp;
     r_[15] = pc;
     cpsr_ = 0x13;  // SVC mode, flags clear, ARM state
     info_ = Info{};
@@ -488,19 +490,118 @@ Arm7Cpu::Halt Arm7Cpu::execute_msr(uint32_t insn, uint32_t value) {
     return Halt::kNone;
 }
 
+// -- the A4's system coprocessor (CP15) ---------------------------------------
+//
+// XNU's first acts are CP15 acts: start.s invalidates caches, loads the
+// translation-table base and the domain register, and turns the MMU on in
+// SCTLR before its first C call. The model is the whole of what a boot
+// needs and nothing more, every choice documented:
+//
+//   identity  MIDR carries ARM implementer, Cortex-A8 part (the A4's core,
+//             S5L8930, a single CPU -- model revision digits); MPIDR is 0,
+//             the one core there is; CTR describes 64-byte lines both
+//             sides; CLIDR/CCSIDR report NO caches -- the truth for an
+//             interpreter, which has no caches to maintain
+//   control   SCTLR/ACTLR/TTBR0/TTBR1/DACR/CONTEXTIDR/TPIDR* are stored and
+//             read back; the MMU enable bit is recorded, but the machine
+//             stays flat VA == PA: XNU maps RAM and the devices 1:1 at
+//             boot, which is exactly what the storage image already is
+//   maintain  every c7 cache and c8 TLB op is a no-op (nothing to maintain)
+//   faults    DFSR/IFSR/DFAR/IFAR are stored, for a panic path to print
+Arm7Cpu::Halt Arm7Cpu::execute_cp15(uint32_t pc_addr, uint32_t insn) {
+    const uint32_t crn  = bits(insn, 19, 16);
+    const uint32_t rt   = bits(insn, 15, 12);
+    const uint32_t opc1 = bits(insn, 23, 21);
+    const uint32_t crm  = bits(insn, 3, 0);
+    const uint32_t opc2 = bits(insn, 7, 5);
+
+    if (bit(insn, 20)) {  // MRC: a read
+        uint32_t v = cp15_[crn][crm][opc2];
+        if (crn == 0 && crm == 0 && opc1 == 0) {
+            if (opc2 == 0) v = 0x414FC091u;      // MIDR: ARM Cortex-A8 (model)
+            if (opc2 == 1) v = 0x80E28002u;      // CTR: 64-byte lines, no caches
+            if (opc2 == 5) v = 0x00000000u;      // MPIDR: the single core
+        }
+        if (crn == 1 && crm == 0 && opc2 == 0 && opc1 == 0 && cp15_[1][0][0] == 0)
+            v = 0x00C50078u;  // SCTLR's architectural reset, before first write
+        if (rt != 15) r_[rt] = v;   // to r15: unpredictable per the manual; skip
+        return Halt::kNone;
+    }
+
+    // MCR: a write. Maintenance (c7, c8) changes nothing; the rest stores.
+    if (crn != 7 && crn != 8)
+        cp15_[crn][crm][opc2] = rt == 15 ? pc_addr + 8 : r_[rt];
+    return Halt::kNone;
+}
+
 // -- dispatch ------------------------------------------------------------------
 
 Arm7Cpu::Halt Arm7Cpu::execute(uint32_t pc_addr, uint32_t insn) {
     const uint32_t cond = insn >> 28;
     if (cond != 0xE && !cond_pass(cond)) return Halt::kNone;
 
+    // The unconditional space (cond 0xF), before the group decode: the
+    // barriers and prefetch hints the kernel's own code uses, and the
+    // VFP-shaped encodings this CPU does not have. In a strictly serial
+    // interpreter a barrier is honoured by construction; prefetch is a
+    // promise the machine needs no help keeping.
+    if (cond == 0xF) {
+        const uint32_t g = (insn >> 25) & 7u;
+        if ((insn & 0x0FF0F000u) == 0x0570F000u)
+            return Halt::kNone;                    // DSB/DMB/ISB (0xF57FF0xx)
+        if (g == 0x2 || g == 0x3) {                // LDR/STR-shaped:
+            if (bits(insn, 15, 12) == 0xF)
+                return Halt::kNone;                // PLD/PLI/PLDW, Rt = 0xF
+            return halt(Halt::kUnknownInstruction, pc_addr, insn,
+                        "unconditional load/store (VFP) not implemented");
+        }
+        if (g == 0x7 && !bit(insn, 24) && !bit(insn, 4))
+            return halt(Halt::kUnknownInstruction, pc_addr, insn,
+                        "unconditional coprocessor instruction not implemented");
+        // CPS/SETEND ride in the unconditional data-processing space
+        // (bits 27-20 == 0x10). This machine has no interrupts to disable
+        // and one endianness; both are semantically no-ops here -- and NOT
+        // decoding them would run them as data processing and clobber a
+        // register, which is exactly the class of bug the trace rig caught.
+        if ((insn & 0x0FF00000u) == 0x01000000u)
+            return Halt::kNone;
+        // BLX immediate (g 5) and anything else falls through to the
+        // conditional groups, which report it in their own words
+    }
+
     const uint32_t grp = (insn >> 25) & 7u;
 
     if (grp == 0x1) {  // data processing (immediate) -- or MSR immediate
+        // The hint space rides in the MSR slot: hints (0xE320F00x) carry
+        // mask = 0b0000 (no fields), Rd = 0b1111 and bits 11-4 zero; a real
+        // 'msr cpsr_<fields>, #imm' always names a field, so its mask nibble
+        // is nonzero and it never matches.
+        if ((insn & 0x0FFFFFF0u) == 0x0320F000u) {  // the hint space (mask 0)
+            if ((insn & 0xFu) == 3)  // WFI: this machine has no interrupt
+                return halt(Halt::kWaitForInterrupt, pc_addr, insn,
+                            "wfi: no interrupt source exists in this machine");
+            return Halt::kNone;      // NOP, YIELD, WFE, SEV
+        }
         if ((insn & 0x0FF0F000u) == 0x0320F000u) {  // MSR cpsr, #imm
             bool carry = false;
             const uint32_t v = imm_operand2(insn, &carry);
             return execute_msr(insn, v);
+        }
+        // MOVW/MOVT (ARMv7): the way every address constant is built on
+        // armv7 -- XNU's start uses them for its literal-pointer arithmetic.
+        // Bits 27-20 are 0x30/0x34 with the S bit CLEAR; the S bit set is
+        // what separates them from TST (0x31) and CMP (0x35), so the mask
+        // must cover bit 20 -- a mask without it ran every 'cmp rN, #imm'
+        // as MOVT and clobbered the register (the conds rig caught it).
+        if ((insn & 0x0FF00000u) == 0x03000000u) {   // MOVW: Rd = imm16
+            r_[bits(insn, 15, 12)] = ((insn >> 4) & 0xF000u) | (insn & 0x0FFFu);
+            return Halt::kNone;
+        }
+        if ((insn & 0x0FF00000u) == 0x03400000u) {   // MOVT: Rd |= imm16 << 16
+            const uint32_t rd = bits(insn, 15, 12);
+            r_[rd] = (r_[rd] & 0x0000FFFFu) |
+                     ((((insn >> 4) & 0xF000u) | (insn & 0x0FFFu)) << 16);
+            return Halt::kNone;
         }
         if ((insn & 0x0FF0F000u) == 0x0360F000u)  // MSR spsr, #imm
             return halt(Halt::kUnsupportedEncoding, pc_addr, insn, "MSR spsr: no banked state yet");
@@ -587,10 +688,19 @@ Arm7Cpu::Halt Arm7Cpu::execute(uint32_t pc_addr, uint32_t insn) {
         return Halt::kNone;
     }
 
-    if (grp == 0x6) return halt(Halt::kUnknownInstruction, pc_addr, insn, "coprocessor instruction not implemented");
+    if (grp == 0x6)  // coprocessor load/store (LDC/STC) -- no user in the boot path
+        return halt(Halt::kUnknownInstruction, pc_addr, insn,
+                    "coprocessor load/store (LDC/STC) not implemented");
 
-    // grp == 7: bits 27-24 == 1111 is SVC (its condition field is a real
-    // condition, usually AL -- the 1111 lives in bits 27-24, not in cond).
+    // grp == 7: the coprocessor register transfers live here (MRC/MCR are
+    // bits 27-24 = 1110 with bit 4 set), then SVC (bit 24 = 1, a real
+    // condition in the field).
+    if (bit(insn, 4) && bits(insn, 27, 24) == 0xE) {  // MRC / MCR
+        if (bits(insn, 11, 8) == 15)
+            return execute_cp15(pc_addr, insn);       // the A4's system coprocessor
+        return halt(Halt::kUnknownInstruction, pc_addr, insn,
+                    "coprocessor (VFP/NEON) instruction not implemented");
+    }
     if (bit(insn, 24))  // SVC
         return halt(Halt::kSupervisorCall, pc_addr, insn, "supervisor call (trap handling is stage-6 work)");
     return halt(Halt::kUnknownInstruction, pc_addr, insn, "coprocessor instruction not implemented");

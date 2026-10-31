@@ -204,6 +204,35 @@ int main(int argc, char** argv) {
         CHECK(r->halt == Halt::kUnknownInstruction);
     }
 
+    // -- movw_movt: ARMv7's constant builder, with cmp riding along -----------
+    // (the encodings sit one S bit apart; a mask without bit 20 ran cmp
+    // as movt and clobbered the register -- this program pins both).
+    if (run_program("movw_movt", &r)) {
+        CHECK(r->cpu.reg(0) == 0x0024C404);          // movw + movt
+        CHECK(r->cpu.reg(1) == 0xDEADBEEF);          // movw + movt
+        CHECK(r->cpu.reg(2) == 0x55);                // movne taken: cmp worked
+        CHECK(r->cpu.reg(3) == 0xAA);                // moveq taken: cmp worked
+        CHECK(r->halt == Halt::kUnknownInstruction); // ran to the UDF
+    }
+
+    // -- cp15_system: the A4's coprocessor, barriers, hints -------------------
+    if (run_program("cp15_system", &r)) {
+        CHECK(r->cpu.reg(0) == 0x414FC091);          // MIDR: ARM Cortex-A8 model
+        CHECK(r->cpu.reg(1) == 0x00000000);          // MPIDR: the single core
+        CHECK(r->cpu.reg(2) == 0x00C50078);          // SCTLR reset value
+        CHECK(r->cpu.reg(3) == 0x123);               // the value written
+        CHECK(r->cpu.reg(4) == 0x123);               // TTBR0 read back
+        CHECK(r->cpu.reg(5) == 7);                   // barriers/hints broke nothing
+        CHECK(r->halt == Halt::kUnknownInstruction); // ran to the UDF
+    }
+
+    // -- wfi: a clean, named halt in a machine with no interrupts -------------
+    if (run_program("wfi", &r)) {
+        CHECK(r->cpu.reg(0) == 1);                   // the mov after wfi never ran
+        CHECK(r->halt == Halt::kWaitForInterrupt);
+        CHECK(r->cpu.info().halt_pc == 0x1004);
+    }
+
     // -- conds ------------------------------------------------------------------
     if (run_program("conds", &r)) {
         CHECK(r->cpu.reg(1) == 0);                   // beq taken

@@ -98,6 +98,7 @@ public:
                      const char* iv_hex, const char* key_hex, std::string* err);
     bool kernel_loaded() const { return entry_pc_ != 0; }
     uint32_t entry_pc() const { return entry_pc_; }
+    uint32_t entry_sp() const { return entry_sp_; }
 
     // -- the run thread --------------------------------------------------------
     bool start(std::string* err);      // fails without a kernel
@@ -152,6 +153,9 @@ private:
 
     State state_ = State::kEmpty;
     uint32_t entry_pc_ = 0;
+    uint32_t entry_sp_ = 0;   // the boot stack the CPU starts with (the
+                              // file's own sp when sane, the engine's
+                              // parked stack above the image when not)
     uint32_t slice_steps_ = kDefaultSliceSteps;
     uint64_t executed_total_ = 0;
     uint64_t slice_executed_ = 0;      // for the MIPS figure

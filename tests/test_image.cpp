@@ -103,7 +103,7 @@ static void test_img3() {
     CHECK(img3.kbag(1) == nullptr);        // the plain fixture has no KBAG
     size_t dlen = 0;
     const uint8_t* d = img3.data(&dlen);
-    CHECK(d && dlen > 336);
+    CHECK(d && dlen > 384);
     CHECK(KernelLzss::is_compressed(d, dlen));  // DATA is a 'comp' blob
 
     // encrypted fixture: the KBAG walk must see both crypt states

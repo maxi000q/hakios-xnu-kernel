@@ -151,12 +151,18 @@ def build_macho():
 # -- 'comp' prelinked-kernel wrapper -------------------------------------------
 def build_comp(macho):
     stream = lzss_compress(macho)
+    # the comp magics are stored FORWARD ('complzss' reads left to right),
+    # unlike the IMG3 tag magics -- measured on the real 6.1.3 kernelcache
+    le32 = lambda b: struct.unpack('<I', b)[0]
     header = struct.pack('<6I10I16s256s',
-                         fcc('comp'), fcc('lzss'),
+                         le32(b'comp'), le32(b'lzss'),
                          zlib.adler32(macho) & 0xFFFFFFFF,
                          len(macho), len(stream), 1,
                          *([0] * 10), b'iPhone3,1', b'/S/L/F/kernel')
-    assert len(header) == 336, len(header)
+    # Apple's own 6.1.3 kernelcache starts the stream at 0x180: the XNU
+    # struct is 336 bytes, kextcache pads 48 more -- measured on the real file
+    header += b'\0' * 48
+    assert len(header) == 384, len(header)
     blob = header + stream
     # pad to the AES block size: encrypted DATA payloads are whole blocks
     pad = (-len(blob)) % 16
@@ -245,7 +251,7 @@ def main():
 
     # the compressed stream inside kComp is whatever the compressor made of
     # the Mach-O; the tests recompute sizes from the fixtures themselves
-    assert struct.unpack('<I', comp[:4])[0] == fcc('comp')
+    assert comp[:4] == b'comp'          # stored forward, like the real cache
     assert struct.unpack('<I', comp[12:16])[0] == len(macho)
 
     parts = []

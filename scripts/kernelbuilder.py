@@ -139,15 +139,22 @@ def macho_armv7_kernel(code, data_words=(), text_vmaddr=0x80001000,
 
 
 def comp_wrap(macho):
-    """The 'comp' prelinked-kernel wrapper: Apple's 336-byte header, the LZSS
-    stream, padded to the AES block size so an encrypted sibling is possible."""
+    """The 'comp' prelinked-kernel wrapper: the 384-byte header Apple's own
+    6.1.3 kernelcache carries (the XNU struct is 336 bytes and Apple's 2013
+    kextcache pads the platform area by 48 more zero bytes -- measured on the
+    real file), the LZSS stream, padded to the AES block size so an encrypted
+    sibling is possible."""
     stream = lzss_compress(macho)
+    # the comp magics are stored FORWARD ('complzss' reads left to right),
+    # unlike the IMG3 tag magics -- measured on the real 6.1.3 kernelcache
+    le32 = lambda b: struct.unpack('<I', b)[0]
     header = struct.pack('<6I10I16s256s',
-                         fcc('comp'), fcc('lzss'),
+                         le32(b'comp'), le32(b'lzss'),
                          zlib.adler32(macho) & 0xFFFFFFFF,
                          len(macho), len(stream), 1,
                          *([0] * 10), b'iPhone3,1', b'/S/L/F/kernel')
-    assert len(header) == 336, len(header)
+    header += b'\0' * 48            # Apple's own cache: the stream starts at 0x180
+    assert len(header) == 384, len(header)
     blob = header + stream
     return blob + b'\0' * ((-len(blob)) % 16)
 

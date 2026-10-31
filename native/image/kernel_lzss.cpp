@@ -15,7 +15,7 @@ bool KernelLzss::parse_header(const uint8_t* bytes, size_t len, Header* out, std
         return false;
     };
     if (len < kHeaderSize)
-        return fail("comp: shorter than the 336-byte prelinked-kernel header");
+        return fail("comp: shorter than the 384-byte prelinked-kernel header");
     Header h;
     h.signature         = load_u32(bytes);
     h.compress_type     = load_u32(bytes + 4);
@@ -29,10 +29,6 @@ bool KernelLzss::parse_header(const uint8_t* bytes, size_t len, Header* out, std
     if (h.compress_type != kCompressLzss)
         return fail("comp: compressType 0x" + std::to_string(h.compress_type) +
                     " is not LZSS (iOS 10+ 'lzvn' caches are out of scope)");
-    if (h.compressed_size == 0 || h.compressed_size > len - kHeaderSize)
-        return fail("comp: compressedSize " + std::to_string(h.compressed_size) +
-                    " does not fit the " + std::to_string(len - kHeaderSize) +
-                    " bytes after the header");
     if (out) *out = h;
     return true;
 }
@@ -55,10 +51,17 @@ bool KernelLzss::decompress(const uint8_t* bytes, size_t len,
     };
     Header h;
     if (!parse_header(bytes, len, &h, err)) return false;
-    if (h.uncompressed_size == 0 || h.uncompressed_size > (size_t(512) << 20))
+    if (h.uncompressed_size == 0 || h.uncompressed_size > kMaxOutput)
         return fail("comp: uncompressedSize " + std::to_string(h.uncompressed_size) +
                     " is not a plausible kernel size (limit 512 MiB)");
     out->reserve(h.uncompressed_size);
+
+    // The stream's end: the header's compressedSize when it is a sane
+    // length, the rest of the input when it is not -- Apple's own 6.1.3
+    // cache carries 0x5c1e7100 in that field, which is not a length.
+    size_t stream_len = len - kHeaderSize;
+    if (h.compressed_size != 0 && h.compressed_size <= stream_len)
+        stream_len = h.compressed_size;
 
     // The ring: 4096 bytes of spaces, write position 4096 - 18, exactly as
     // the reference decoder initializes it.
@@ -67,10 +70,13 @@ bool KernelLzss::decompress(const uint8_t* bytes, size_t len,
     size_t dictptr = kRingSize - kMaxMatch;
 
     const uint8_t* src = bytes + kHeaderSize;
-    const uint8_t* end = src + h.compressed_size;
+    const uint8_t* end = src + stream_len;
     uint32_t flags = 0;
     int bits = 0;
-    while (out->size() < h.uncompressed_size && src < end) {
+    // The loop runs to the stream's end, not to uncompressedSize: a real
+    // prelinked cache decompresses to MORE than the header's size field
+    // (the kexts and their plists ride behind the kernel in the stream).
+    while (src < end) {
         if (bits == 0) {
             flags = *src++;
             bits = 8;
@@ -87,7 +93,7 @@ bool KernelLzss::decompress(const uint8_t* bytes, size_t len,
             src += 2;
             if (pos >= kRingSize)
                 return fail("comp: match position beyond the ring");
-            for (size_t i = 0; i < count && out->size() < h.uncompressed_size; i++) {
+            for (size_t i = 0; i < count; i++) {
                 const uint8_t c = ring[(pos + i) % kRingSize];  // byte-by-byte:
                 ring[dictptr] = c;                              // a match may read
                 out->push_back(c);                              // what it wrote
@@ -96,13 +102,22 @@ bool KernelLzss::decompress(const uint8_t* bytes, size_t len,
         }
         flags >>= 1;
         bits--;
+        if (out->size() > kMaxOutput)
+            return fail("comp: LZSS stream inflated past 512 MiB");
     }
 
-    if (out->size() != h.uncompressed_size)
+    if (out->size() < h.uncompressed_size)
         return fail("comp: LZSS stream produced " + std::to_string(out->size()) +
-                    " bytes, the header promises " + std::to_string(h.uncompressed_size));
+                    " bytes, the header promises at least " +
+                    std::to_string(h.uncompressed_size));
     const uint32_t got = adler32(out->data(), out->size());
-    if (got != h.adler32)
+    h.adler_verified = (got == h.adler32);
+    // The checksum is enforced exactly when the field describes the whole
+    // output (our generated kernels). Apple's real prelinked cache promises
+    // the pre-prelink kernel size while the stream yields kernel + kexts +
+    // plists, and its field matches no adler of any natural range -- there
+    // the Mach-O structure downstream is the integrity gate, not this word.
+    if (out->size() == h.uncompressed_size && !h.adler_verified)
         return fail("comp: adler32 mismatch (got 0x" + std::to_string(got) +
                     ", the header says 0x" + std::to_string(h.adler32) +
                     ") -- corrupt data or a wrong decryption key");

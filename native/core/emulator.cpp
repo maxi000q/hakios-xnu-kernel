@@ -39,6 +39,7 @@ void Emulator::close() noexcept {
     mem_.close();
     state_ = State::kEmpty;
     entry_pc_ = 0;
+    entry_sp_ = 0;
     executed_total_ = 0;
     halt_ = Halt{};
 }
@@ -80,6 +81,18 @@ bool Emulator::load_kernel(const uint8_t* bytes, size_t len,
         return false;
     }
     entry_pc_ = report.entry_pc;
+    // Apple's own kernelcache ships sp 0 in its LC_UNIXTHREAD -- iBoot
+    // always supplies the live stack at boot, so the field carries nothing.
+    // The engine parks a boot stack of its own just above the loaded image,
+    // inside the emulated iPhone's RAM, and uses the file's sp only when it
+    // is a sane address (our self-test kernel's is a format demo).
+    entry_sp_ = report.entry_sp;
+    if (entry_sp_ < map::kRamBase || entry_sp_ >= map::kRamEnd) {
+        uint32_t image_end = 0;
+        for (const auto& p : report.placed)
+            image_end = std::max(image_end, p.vmaddr + p.vmsize);
+        entry_sp_ = (image_end + (1u << 20) + 0xFFFu) & ~0xFFFu;
+    }
     reset_cpu();
     state_ = State::kLoaded;
     if (err) err->clear();
@@ -87,7 +100,7 @@ bool Emulator::load_kernel(const uint8_t* bytes, size_t len,
 }
 
 void Emulator::reset_cpu() {
-    cpu_.reset(entry_pc_);
+    cpu_.reset(entry_pc_, entry_sp_);
     halt_ = Halt{};
     // Arm7Cpu::reset() zeroes info_.executed with the rest of Info; the
     // slice bookkeeping must follow it, or the first slice of a restarted

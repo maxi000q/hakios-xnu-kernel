@@ -33,11 +33,22 @@ AES-256-CBC encrypted -- the KBAGs hold the IV and key wrapped with the
 device group key, and the *unwrapped* per-file IV+key are what the research
 community publishes as firmware keys. The loader (`native/image/`) parses
 the container and decrypts with a key the user supplies during install;
-this project ships no keys and wraps or derives nothing. After decryption
-the payload is a `'comp'`-headered LZSS stream that inflates to a fat
-Mach-O whose armv7 slice is the kernel, linked to run at 0x80001000 --
-which is why the emulated iPhone's RAM lives at 0x80000000
-(`native/include/hakios/guest_map.h`).
+this project ships no keys and wraps or derives nothing. (Apple stores the
+logical size in the DATA tag -- the ciphertext itself is whole 16-byte
+blocks, so the last partial block is not in the file; the loader drops
+that unreachable tail instead of guessing at it.)
+
+After decryption the payload is a `'comp'`-headered LZSS stream (the
+magics spell FORWARD, `complzss` in a hex editor -- unlike the IMG3 tag
+magics of the same file, which spell backwards; the header is 384 bytes,
+not the XNU struct's 336; and `uncompressedSize` holds the pre-prelink
+kernel, 6,343,680, while the stream really yields 13,393,815 bytes). It
+inflates to a **thin armv7 Mach-O** -- a *prelinked* kernel: `__TEXT`,
+`__DATA`, `__KLD`, `__PRELINK_TEXT` (the kexts, 9.4 MB), `__PRELINK_INFO`
+(the kext plists, whose XML is exactly where its fileoff points -- the
+byte-perfect proof of the decode) -- linked to run at 0x80001000 with the
+entry at 0x80086084, which is why the emulated iPhone's RAM lives at
+0x80000000 (`native/include/hakios/guest_map.h`).
 
 **The root filesystem DMG** is not a plain disk image like the 16.5 rootfs:
 it starts with the magic `encrcdsa` and *everything* after that header is
@@ -69,6 +80,22 @@ kernelcache.release.n90    the install pipeline's input
 048-2748-005.dmg           the guest's system volume, stored
 directory.txt              what the archive actually contained, for the record
 ```
+
+## The verified run, on the record
+
+The whole chain has been executed against Apple's own file, end to end,
+with a key supplied at run time from published research (never stored in
+this repository): fetch from Apple's servers, IMG3 parse, AES-256-CBC
+decrypt, comp/LZSS inflate to the 13.4 MB prelinked armv7 Mach-O, segments
+into the emulated iPhone's RAM at their linked addresses, and the CPU
+turned loose at 0x80086084 -- Apple's own entry point. The kernel runs its
+real boot path for millions of instructions (start, the exception vectors,
+CP15 bring-up through the A4's system coprocessor, pmap and machine init)
+and halts at the first thing the machine does not have: the VFP unit it
+probes during `vfp_init`, reported by name with the PC and the instruction
+word. The next stages of the machine are therefore named by the kernel
+itself: VFP, the devices XNU 2107 probes, and the boot args iBoot would
+hand over -- none of them pretended, all of them on the roadmap.
 
 ## The dyld shared cache
 

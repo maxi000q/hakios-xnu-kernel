@@ -67,15 +67,20 @@ is a public standard, and the loader refuses to guess: without a key it says
 exactly that). With a key, the install places the actual iOS 6.1.3 kernel of
 the iPhone 4 into the emulated machine.
 
-**What boots after that, honestly:** this release's kernel path is real end
-to end, but a research interpreter runs a 2012 kernel at "minutes to first
-logo" pace, and the emulated iPhone has no drivers yet for the hardware a
-full iOS 6 boot expects — touch, storage, the real display controller. The
-first thing a real kernel does without them is halt, and the app will say
-so in the kernel's own terms. Growing the machine (an HFSX volume behind the
-stored system DMG, the devices XNU 2107 probes) is the work of the stages
-after this one; the roadmap never promised a phone-in-an-app, and neither
-does the app.
+**What boots after that, honestly:** this release's kernel path is real
+end to end and has been executed against Apple's own file: with a correct
+key, the install decrypts the actual 6.1.3 kernel cache of the iPhone 4,
+inflates the 13.4 MB prelinked armv7 Mach-O, places its segments at their
+linked addresses in the emulated iPhone's RAM, and starts Apple's own
+entry point. The kernel then runs its real boot path for millions of
+instructions — start, the exception vectors, CP15 bring-up through the
+A4's modelled system coprocessor, pmap and machine init — at a research
+interpreter's pace, and halts at the first thing the machine does not
+have yet: the VFP unit it probes, then (once VFP exists) the devices and
+the boot args iBoot would hand over. The app reports that halt in the
+kernel's own terms — reason, PC, the offending instruction word. No
+interface ships in this release, and none is faked: the roadmap never
+promised a phone-in-an-app, and neither does the app.
 
 ## Requirements
 

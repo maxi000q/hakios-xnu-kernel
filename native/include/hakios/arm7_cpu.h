@@ -20,12 +20,19 @@
 //   - LDM/STM: IA/IB/DA/DB, writeback
 //   - MUL/MLA/UMULL/UMLAL/SMULL/SMLAL, CLZ
 //   - MRS/MSR (CPSR, field masks), BX, B/BL, SVC
+//   - MOVW/MOVT (ARMv7's constant builder), CPS/SETEND (no-ops: no
+//     interrupts, one endianness)
+//   - MRC/MCR p15, the A4's system coprocessor: identity registers with
+//     Cortex-A8 model values, SCTLR/TTBR/DACR/CONTEXTIDR/TPIDR stored and
+//     read back, cache/TLB maintenance as no-ops (see execute_cp15)
+//   - DSB/DMB/ISB barriers (no-ops in a serial interpreter), PLD/PLI/PLDW
+//     prefetch hints (no-ops), NOP/YIELD/WFE/SEV; WFI is a clean halt
 //
 // Deliberately not yet, each halting with a distinct, reportable reason:
 //   Thumb state (BX/BLX to a Thumb address, MSR setting the T bit) --
 //   iOS 6 userland will need it, the kernel entry path does not;
 //   LDRD/STRD, LDM^/STM^ (user-bank), MOVS pc (SPSR restore, needs
-//   banked registers), coprocessor/VFP/NEON, media (parallel) ops.
+//   banked registers), VFP/NEON (coprocessors 10/11), media (parallel) ops.
 // The engine (stage 6) surfaces these as "unsupported: <what>, at pc".
 //
 // Pipeline semantics: reads of r15 as an operand give insn+8; a store of
@@ -51,6 +58,8 @@ public:
         kMisalignedPc,          // PC with low bits set in ARM state
         kFetchFault,             // instruction fetch outside the guest image
         kDataFault,              // data access outside the guest image
+        kWaitForInterrupt,       // WFI in a machine with no interrupt source:
+                                 // the wait would be forever, so it is a halt
     };
 
     struct Info {
@@ -64,7 +73,7 @@ public:
     explicit Arm7Cpu(StorageMemory& mem) : mem_(mem) {}
 
     // Zero registers, CPSR = SVC mode with flags clear, halt cleared.
-    void reset(uint32_t pc);
+    void reset(uint32_t pc, uint32_t sp = 0);
 
     // Execute exactly one instruction (or a skipped condition). The halt
     // is sticky: once set, step() returns it forever until reset().
@@ -100,6 +109,7 @@ private:
     Halt execute_ldm_stm(uint32_t pc_addr, uint32_t insn);
     Halt execute_multiply(uint32_t insn);
     Halt execute_msr(uint32_t insn, uint32_t value);
+    Halt execute_cp15(uint32_t pc_addr, uint32_t insn);
 
     // operand helpers
     uint32_t dp_operand2(uint32_t insn, uint32_t pc_addr, bool* carry_out);
@@ -126,6 +136,10 @@ private:
     StorageMemory& mem_;
     uint32_t r_[16];
     uint32_t cpsr_ = 0x13;  // SVC mode, flags clear
+    // CP15's storage: [CRn][CRm][opc2], opc1 folded (the boot path uses
+    // opc1 == 0 for control and opc1 == 1 for cache geometry, which reads
+    // as zeros here -- an interpreter has no caches to describe).
+    uint32_t cp15_[16][16][8] = {};
     Info info_;
 };
 
